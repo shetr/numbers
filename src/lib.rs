@@ -32,10 +32,11 @@ impl<const N: usize, const S: bool> fmt::Display for int_fixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> fmt::Binary for int_fixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut bin = String::with_capacity(N*std::mem::size_of::<u64>()*8);
+        let chunk_size = mem::size_of::<u64>()*8;
+        let mut bin = String::with_capacity(N*chunk_size);
         for chunk in self.data.iter().rev() {
-            let mut bit_mask: u64 = 1 << 63;
-            for i in (0..(std::mem::size_of::<u64>()*8)).rev() {
+            let mut bit_mask: u64 = 1 << (chunk_size - 1);
+            for _ in (0..chunk_size).rev() {
                 bin.push(if chunk & bit_mask == 0 {'0'} else {'1'});
                 bit_mask = bit_mask >> 1;
             }
@@ -46,7 +47,11 @@ impl<const N: usize, const S: bool> fmt::Binary for int_fixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> fmt::LowerHex for int_fixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut hex = String::with_capacity(N*std::mem::size_of::<u64>());
+        let chunk_size = mem::size_of::<u64>()*2;
+        let mut hex = String::with_capacity(N*chunk_size);
+        for chunk in self.data.iter().rev() {
+            hex.push_str(&format!("{:x}", chunk));
+        }
         // TODO: implement + test
         write!(f, "{}", hex)
     }
@@ -54,7 +59,7 @@ impl<const N: usize, const S: bool> fmt::LowerHex for int_fixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> fmt::UpperHex for int_fixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut hex = String::with_capacity(N*std::mem::size_of::<u64>());
+        let mut hex = String::with_capacity(N*mem::size_of::<u64>()*2);
         // TODO: implement + test
         write!(f, "{}", hex)
     }
