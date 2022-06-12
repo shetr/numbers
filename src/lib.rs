@@ -1,4 +1,3 @@
-use std::cmp;
 use std::fmt;
 use std::mem;
 
@@ -71,6 +70,30 @@ impl<const N: usize, const S: bool> int_fixed<{N}, {S}> {
     pub fn get_data_mut(&mut self) -> &mut [u64; N] {
         &mut self.data
     }
+
+    fn to_hex(&self) -> String {
+        let bit_size = mem::size_of::<u64>()*8;
+        let chunk_size = mem::size_of::<u64>()*2;
+        let mut hex = String::with_capacity(N*chunk_size);
+        let mut only_zeros = true;
+        for chunk in self.data.iter().rev() {
+            let mut bit_mask: u64 = 0xF << (bit_size - 4);
+            for i in (0..chunk_size).rev() {
+                if chunk & bit_mask != 0 {
+                    only_zeros = false;
+                }
+                if !only_zeros {
+                    let val = (bit_mask >> i * 4) as u8;
+                    hex.push(((if val < 10 { '0' as u8 + val} else { 'a' as u8 + val - 10})) as char);
+                }
+                bit_mask >>= 4;
+            }
+        }
+        if only_zeros {
+            hex.push('0');
+        }
+        hex
+    }
 }
 
 impl<const N: usize, const S: bool> fmt::Display for int_fixed<{N}, {S}> {
@@ -82,8 +105,9 @@ impl<const N: usize, const S: bool> fmt::Display for int_fixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> fmt::Binary for int_fixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: abstract the implementation away
         let chunk_size = mem::size_of::<u64>()*8;
-        let mut bin = String::with_capacity(cmp::max(N*chunk_size, f.width().unwrap_or(0)));
+        let mut bin = String::with_capacity(N*chunk_size);
         let mut only_zeros = true;
         for chunk in self.data.iter().rev() {
             let mut bit_mask: u64 = 1 << (chunk_size - 1);
@@ -98,28 +122,22 @@ impl<const N: usize, const S: bool> fmt::Binary for int_fixed<{N}, {S}> {
                 bit_mask >>= 1;
             }
         }
-        let is_nonnegative = if S { false } else { true }; // FIXME: change false to *self >= 0
-        f.pad_integral(is_nonnegative, "0b", &bin)
+        if only_zeros {
+            bin.push('0');
+        }
+        f.pad_integral(true, "0b", &bin)
     }
 }
 
 impl<const N: usize, const S: bool> fmt::LowerHex for int_fixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let chunk_size = mem::size_of::<u64>()*2;
-        let mut hex = String::with_capacity(N*chunk_size);
-        for chunk in self.data.iter().rev() {
-            hex.push_str(&format!("{:x}", chunk));
-        }
-        // TODO: implement + test
-        write!(f, "{}", hex)
+        f.pad_integral(true, "0x", &self.to_hex())
     }
 }
 
 impl<const N: usize, const S: bool> fmt::UpperHex for int_fixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut hex = String::with_capacity(N*mem::size_of::<u64>()*2);
-        // TODO: implement + test
-        write!(f, "{}", hex)
+        f.pad_integral(true, "0x", &self.to_hex().to_uppercase())
     }
 }
 
@@ -211,6 +229,14 @@ mod tests {
         assert_eq!(
             format!("{:>5b}", int_fixed::<1, false>::from_num(2)),
             format!("{:>5b}", 2)
+        );
+        assert_eq!(
+            format!("{:b}", int_fixed::<1, false>::from_num(u64::MAX)),
+            format!("{:b}", -1i64)
+        );
+        assert_eq!(
+            format!("{:b}", int_fixed::<1, false>::from_num(0)),
+            format!("{:b}", 0)
         );
     }
 
