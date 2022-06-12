@@ -1,9 +1,10 @@
 use std::cmp::{Ord, Eq, PartialEq, PartialOrd, Ordering};
 use std::fmt;
 use std::mem;
+use std::ops::{BitAnd, BitAndAssign};
 
 // TODO:
-// note: don't be scared of the amount of work, once I implement this once, the others will be easy
+// note: don't be scared of the amount of work, once I implement this once, the others will be easy, just a lot of refactor
 // comparison operators
 // binary operators
 // addition
@@ -23,8 +24,7 @@ use std::mem;
 // when killing time: octal fmt
 // maybe do wrapping/saturating variant
 
-// used before for int_fixed: #[allow(non_camel_case_types)]
-#[derive(Debug)] // TODO: maybe implemet with Display, because normal numbers have it like that (I think)
+#[derive(Debug, Copy, Clone)] // TODO: maybe implemet with Display, because normal numbers have it like that (I think)
 pub struct IntFixed<const N: usize, const S: bool>
 {
     data: [u64; N]
@@ -179,15 +179,19 @@ impl<const N: usize, const S: bool> fmt::UpperExp for IntFixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> Ord for IntFixed<{N}, {S}> {
     fn cmp(&self, other: &Self) -> Ordering {
-        // FIXME: implement for signed
-        for i in (0..self.data.len()).rev() {
-            if self.data[i] < other.data[i] {
-                return Ordering::Less;
-            } else if self.data[i] < other.data[i] {
-                return Ordering::Greater;
+        if S {
+            // FIXME: implement for signed
+            return Ordering::Equal;
+        } else {
+            for i in (0..self.data.len()).rev() {
+                if self.data[i] < other.data[i] {
+                    return Ordering::Less;
+                } else if self.data[i] < other.data[i] {
+                    return Ordering::Greater;
+                }
             }
+            return Ordering::Equal;
         }
-        return Ordering::Equal;
     }
 }
 
@@ -210,6 +214,28 @@ impl<const N: usize, const S: bool> PartialEq for IntFixed<{N}, {S}> {
     }
 }
 
+impl<const N: usize, const S: bool> BitAnd for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        let mut out = self;
+        out &= rhs;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> BitAndAssign for IntFixed<{N}, {S}> {
+    fn bitand_assign(&mut self, rhs: Self) {
+        for i in 0..N {
+            self.data[i] &= rhs.data[i];
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub type u_fixed<const N: usize> = IntFixed<N, false>;
+#[allow(non_camel_case_types)]
+pub type i_fixed<const N: usize> = IntFixed<N, false>;
 
 #[cfg(test)]
 mod tests {
@@ -219,31 +245,31 @@ mod tests {
     #[test]
     fn int_fixed_zero() {
         let data: [u64; 3] = [0; 3];
-        let num = IntFixed::<3, false>::zero();
+        let num = u_fixed::<3>::zero();
         assert_eq!(*num.get_data(), data);
     }
 
     #[test]
     fn int_fixed_from_data() {
         let data: [u64; 4] = [1, 2, 3, 4];
-        let num = IntFixed::<4, false>::from_data(data);
+        let num = u_fixed::<4>::from_data(data);
         assert_eq!(*num.get_data(), data);
     }
 
     #[test]
     fn int_fixed_to_string() {
-        let num = IntFixed::<4, false>::from_data([1, 2, 3, 4]);
+        let num = u_fixed::<4>::from_data([1, 2, 3, 4]);
         assert_eq!(num.to_string(), "1");
     }
 
     #[test]
     fn int_fixed_to_binary_string() {
         assert_eq!(
-            format!("{:b}", IntFixed::<2, false>::from_data([1, u64::MAX])),
+            format!("{:b}", u_fixed::<2>::from_data([1, u64::MAX])),
             "11111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000001"
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<2, false>::from_data([3, 1])),
+            format!("{:b}", u_fixed::<2>::from_data([3, 1])),
             "10000000000000000000000000000000000000000000000000000000000000011"
         );
     }
@@ -251,132 +277,140 @@ mod tests {
     #[test]
     fn int_fixed_to_binary_string_u64() {
         assert_eq!(
-            format!("{:b}", IntFixed::<1, false>::from_num(1)),
+            format!("{:b}", u_fixed::<1>::from_num(1)),
             format!("{:b}", 1)
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<1, true>::from_num(1)),
+            format!("{:b}", i_fixed::<1>::from_num(1)),
             format!("{:b}", 1)
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<1, false>::from_num(165)),
+            format!("{:b}", u_fixed::<1>::from_num(165)),
             format!("{:b}", 165)
         );
         assert_eq!(
-            format!("{:#b}", IntFixed::<1, false>::from_num(5)),
+            format!("{:#b}", u_fixed::<1>::from_num(5)),
             format!("{:#b}", 5)
         );
         assert_eq!(
-            format!("{:032b}", IntFixed::<1, false>::from_num(5)),
+            format!("{:032b}", u_fixed::<1>::from_num(5)),
             format!("{:032b}", 5)
         );
         assert_eq!(
-            format!("{:032b}", IntFixed::<1, false>::from_num(5)),
+            format!("{:032b}", u_fixed::<1>::from_num(5)),
             format!("{:032b}", 5)
         );
         assert_eq!(
-            format!("{:<5b}", IntFixed::<1, false>::from_num(2)),
+            format!("{:<5b}", u_fixed::<1>::from_num(2)),
             format!("{:<5b}", 2)
         );
         assert_eq!(
-            format!("{:-<5b}", IntFixed::<1, false>::from_num(2)),
+            format!("{:-<5b}", u_fixed::<1>::from_num(2)),
             format!("{:-<5b}", 2)
         );
         assert_eq!(
-            format!("{:^5b}", IntFixed::<1, false>::from_num(2)),
+            format!("{:^5b}", u_fixed::<1>::from_num(2)),
             format!("{:^5b}", 2)
         );
         assert_eq!(
-            format!("{:>5b}", IntFixed::<1, false>::from_num(2)),
+            format!("{:>5b}", u_fixed::<1>::from_num(2)),
             format!("{:>5b}", 2)
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<1, false>::from_num(u64::MAX)),
+            format!("{:b}", u_fixed::<1>::from_num(u64::MAX)),
             format!("{:b}", -1i64)
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<1, true>::from_num(u64::MAX)),
+            format!("{:b}", i_fixed::<1>::from_num(u64::MAX)),
             format!("{:b}", -1i64)
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<1, false>::from_num(0)),
+            format!("{:b}", u_fixed::<1>::from_num(0)),
             format!("{:b}", 0)
         );
         assert_eq!(
-            format!("{:b}", IntFixed::<1, true>::from_num(0)),
+            format!("{:b}", i_fixed::<1>::from_num(0)),
             format!("{:b}", 0)
         );
     }
 
     #[test]
     fn int_fixed_to_lower_hex() {
-        assert_eq!(format!("{:x}", IntFixed::<2, false>::from_data([1, u64::MAX])), "ffffffffffffffff0000000000000001");
-        assert_eq!(format!("{:x}", IntFixed::<2, false>::from_data([3, 1])), "10000000000000003");
+        assert_eq!(format!("{:x}", u_fixed::<2>::from_data([1, u64::MAX])), "ffffffffffffffff0000000000000001");
+        assert_eq!(format!("{:x}", u_fixed::<2>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
     fn int_fixed_to_upper_hex() {
-        assert_eq!(format!("{:X}", IntFixed::<2, false>::from_data([1, u64::MAX])), "FFFFFFFFFFFFFFFF0000000000000001");
-        assert_eq!(format!("{:X}", IntFixed::<2, false>::from_data([3, 1])), "10000000000000003");
+        assert_eq!(format!("{:X}", u_fixed::<2>::from_data([1, u64::MAX])), "FFFFFFFFFFFFFFFF0000000000000001");
+        assert_eq!(format!("{:X}", u_fixed::<2>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
     fn int_fixed_to_hex_string_u64() {
         assert_eq!(
-            format!("{:x}", IntFixed::<1, false>::from_num(1)),
+            format!("{:x}", u_fixed::<1>::from_num(1)),
             format!("{:x}", 1)
         );
         assert_eq!(
-            format!("{:x}", IntFixed::<1, true>::from_num(1)),
+            format!("{:x}", i_fixed::<1>::from_num(1)),
             format!("{:x}", 1)
         );
         assert_eq!(
-            format!("{:x}", IntFixed::<1, false>::from_num(165)),
+            format!("{:x}", u_fixed::<1>::from_num(165)),
             format!("{:x}", 165)
         );
         assert_eq!(
-            format!("{:#x}", IntFixed::<1, false>::from_num(5)),
+            format!("{:#x}", u_fixed::<1>::from_num(5)),
             format!("{:#x}", 5)
         );
         assert_eq!(
-            format!("{:032x}", IntFixed::<1, false>::from_num(5)),
+            format!("{:032x}", u_fixed::<1>::from_num(5)),
             format!("{:032x}", 5)
         );
         assert_eq!(
-            format!("{:032x}", IntFixed::<1, false>::from_num(5)),
+            format!("{:032x}", u_fixed::<1>::from_num(5)),
             format!("{:032x}", 5)
         );
         assert_eq!(
-            format!("{:<5x}", IntFixed::<1, false>::from_num(2)),
+            format!("{:<5x}", u_fixed::<1>::from_num(2)),
             format!("{:<5x}", 2)
         );
         assert_eq!(
-            format!("{:-<5x}", IntFixed::<1, false>::from_num(2)),
+            format!("{:-<5x}", u_fixed::<1>::from_num(2)),
             format!("{:-<5x}", 2)
         );
         assert_eq!(
-            format!("{:^5x}", IntFixed::<1, false>::from_num(2)),
+            format!("{:^5x}", u_fixed::<1>::from_num(2)),
             format!("{:^5x}", 2)
         );
         assert_eq!(
-            format!("{:>5x}", IntFixed::<1, false>::from_num(2)),
+            format!("{:>5x}", u_fixed::<1>::from_num(2)),
             format!("{:>5x}", 2)
         );
         assert_eq!(
-            format!("{:x}", IntFixed::<1, false>::from_num(u64::MAX)),
+            format!("{:x}", u_fixed::<1>::from_num(u64::MAX)),
             format!("{:x}", -1i64)
         );
         assert_eq!(
-            format!("{:x}", IntFixed::<1, true>::from_num(u64::MAX)),
+            format!("{:x}", i_fixed::<1>::from_num(u64::MAX)),
             format!("{:x}", -1i64)
         );
         assert_eq!(
-            format!("{:x}", IntFixed::<1, false>::from_num(0)),
+            format!("{:x}", u_fixed::<1>::from_num(0)),
             format!("{:x}", 0)
         );
         assert_eq!(
-            format!("{:x}", IntFixed::<1, true>::from_num(0)),
+            format!("{:x}", i_fixed::<1>::from_num(0)),
             format!("{:x}", 0)
         );
+    }
+
+    #[test]
+    fn int_fixed_cmp() {
+        assert_eq!(u_fixed::<2>::from_data([1, 2]), u_fixed::<2>::from_data([1, 2]));
+        assert_eq!(u_fixed::<3>::from_data([3, 0, 2]), u_fixed::<3>::from_data([3, 0, 2]));
+        assert_ne!(u_fixed::<2>::from_data([1, 2]), u_fixed::<2>::from_data([2, 1]));
+        assert_ne!(u_fixed::<3>::from_data([1, 0, 2]), u_fixed::<3>::from_data([1, 0, 1]));
     }
 }
