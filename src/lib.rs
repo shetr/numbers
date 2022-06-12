@@ -1,6 +1,12 @@
 use std::fmt;
 use std::mem;
 
+// TODO:
+// move testing to its file
+// move int_fixed to its file
+// make general utils for some functions like binary and hex fmt
+// create general number traits and use one of them for type of data inside int_fixed
+
 #[allow(non_camel_case_types)]
 #[derive(Debug)] // TODO: maybe implemet with Display, because normal numbers have it like that (I think)
 pub struct int_fixed<const N: usize, const S: bool>
@@ -72,6 +78,7 @@ impl<const N: usize, const S: bool> int_fixed<{N}, {S}> {
     }
 
     fn to_hex(&self) -> String {
+        // TODO: abstract the implementation away
         let bit_size = mem::size_of::<u64>()*8;
         let chunk_size = mem::size_of::<u64>()*2;
         let mut hex = String::with_capacity(N*chunk_size);
@@ -79,11 +86,12 @@ impl<const N: usize, const S: bool> int_fixed<{N}, {S}> {
         for chunk in self.data.iter().rev() {
             let mut bit_mask: u64 = 0xF << (bit_size - 4);
             for i in (0..chunk_size).rev() {
-                if chunk & bit_mask != 0 {
+                let masked = chunk & bit_mask;
+                if masked != 0 {
                     only_zeros = false;
                 }
                 if !only_zeros {
-                    let val = (bit_mask >> i * 4) as u8;
+                    let val = (masked >> i * 4) as u8;
                     hex.push(((if val < 10 { '0' as u8 + val} else { 'a' as u8 + val - 10})) as char);
                 }
                 bit_mask >>= 4;
@@ -242,19 +250,61 @@ mod tests {
 
     #[test]
     fn int_fixed_to_lower_hex() {
-        let num = int_fixed::<2, false>::from_data([1, u64::MAX]);
-        assert_eq!(
-            format!("{:x}", num),
-            ""
-        );
+        assert_eq!(format!("{:x}", int_fixed::<2, false>::from_data([1, u64::MAX])), "ffffffffffffffff0000000000000001");
+        assert_eq!(format!("{:x}", int_fixed::<2, false>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
     fn int_fixed_to_upper_hex() {
-        let num = int_fixed::<2, false>::from_data([1, u64::MAX]);
+        assert_eq!(format!("{:X}", int_fixed::<2, false>::from_data([1, u64::MAX])), "FFFFFFFFFFFFFFFF0000000000000001");
+        assert_eq!(format!("{:X}", int_fixed::<2, false>::from_data([3, 1])), "10000000000000003");
+    }
+
+    #[test]
+    fn int_fixed_to_hex_string_u64() {
         assert_eq!(
-            format!("{:X}", num),
-            ""
+            format!("{:x}", int_fixed::<1, false>::from_num(1)),
+            format!("{:x}", 1)
+        );
+        assert_eq!(
+            format!("{:x}", int_fixed::<1, false>::from_num(165)),
+            format!("{:x}", 165)
+        );
+        assert_eq!(
+            format!("{:#x}", int_fixed::<1, false>::from_num(5)),
+            format!("{:#x}", 5)
+        );
+        assert_eq!(
+            format!("{:032x}", int_fixed::<1, false>::from_num(5)),
+            format!("{:032x}", 5)
+        );
+        assert_eq!(
+            format!("{:032x}", int_fixed::<1, false>::from_num(5)),
+            format!("{:032x}", 5)
+        );
+        assert_eq!(
+            format!("{:<5x}", int_fixed::<1, false>::from_num(2)),
+            format!("{:<5x}", 2)
+        );
+        assert_eq!(
+            format!("{:-<5x}", int_fixed::<1, false>::from_num(2)),
+            format!("{:-<5x}", 2)
+        );
+        assert_eq!(
+            format!("{:^5x}", int_fixed::<1, false>::from_num(2)),
+            format!("{:^5x}", 2)
+        );
+        assert_eq!(
+            format!("{:>5x}", int_fixed::<1, false>::from_num(2)),
+            format!("{:>5x}", 2)
+        );
+        assert_eq!(
+            format!("{:x}", int_fixed::<1, false>::from_num(u64::MAX)),
+            format!("{:x}", -1i64)
+        );
+        assert_eq!(
+            format!("{:x}", int_fixed::<1, false>::from_num(0)),
+            format!("{:x}", 0)
         );
     }
 }
