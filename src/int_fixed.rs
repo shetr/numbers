@@ -1,7 +1,7 @@
 use std::cmp::{Ord, Eq, PartialEq, PartialOrd, Ordering};
 use std::fmt;
 use std::mem;
-use std::ops::{BitAnd, BitAndAssign};
+use std::ops::*;
 
 // TODO:
 // note: don't be scared of the amount of work, once I implement this once, the others will be easy, just a lot of refactor
@@ -186,7 +186,7 @@ impl<const N: usize, const S: bool> Ord for IntFixed<{N}, {S}> {
             for i in (0..self.data.len()).rev() {
                 if self.data[i] < other.data[i] {
                     return Ordering::Less;
-                } else if self.data[i] < other.data[i] {
+                } else if self.data[i] > other.data[i] {
                     return Ordering::Greater;
                 }
             }
@@ -232,10 +232,58 @@ impl<const N: usize, const S: bool> BitAndAssign for IntFixed<{N}, {S}> {
     }
 }
 
+impl<const N: usize, const S: bool> BitOr for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        let mut out = self;
+        out |= rhs;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> BitOrAssign for IntFixed<{N}, {S}> {
+    fn bitor_assign(&mut self, rhs: Self) {
+        for i in 0..N {
+            self.data[i] |= rhs.data[i];
+        }
+    }
+}
+
+impl<const N: usize, const S: bool> BitXor for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        let mut out = self;
+        out ^= rhs;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> BitXorAssign for IntFixed<{N}, {S}> {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        for i in 0..N {
+            self.data[i] ^= rhs.data[i];
+        }
+    }
+}
+
+impl<const N: usize, const S: bool> Not for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        let mut out = self;
+        for i in 0..N {
+            out.data[i] = !out.data[i];
+        }
+        out
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub type u_fixed<const N: usize> = IntFixed<N, false>;
 #[allow(non_camel_case_types)]
-pub type i_fixed<const N: usize> = IntFixed<N, false>;
+pub type i_fixed<const N: usize> = IntFixed<N, true>;
 
 #[cfg(test)]
 mod tests {
@@ -408,9 +456,25 @@ mod tests {
 
     #[test]
     fn int_fixed_cmp() {
+        // TODO: write better tests, more understandable, only edge cases
         assert_eq!(u_fixed::<2>::from_data([1, 2]), u_fixed::<2>::from_data([1, 2]));
         assert_eq!(u_fixed::<3>::from_data([3, 0, 2]), u_fixed::<3>::from_data([3, 0, 2]));
         assert_ne!(u_fixed::<2>::from_data([1, 2]), u_fixed::<2>::from_data([2, 1]));
         assert_ne!(u_fixed::<3>::from_data([1, 0, 2]), u_fixed::<3>::from_data([1, 0, 1]));
+        assert_eq!(u_fixed::<2>::from_data([1, 2]).cmp(&u_fixed::<2>::from_data([1, 2])), Ordering::Equal);
+        assert_eq!(u_fixed::<3>::from_data([3, 0, 2]).cmp(&u_fixed::<3>::from_data([3, 0, 2])), Ordering::Equal);
+        assert_eq!(u_fixed::<3>::from_data([0, 0, 0]).cmp(&u_fixed::<3>::from_data([1, 0, 0])), Ordering::Less);
+        assert_eq!(u_fixed::<3>::from_data([0, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 1, 0])), Ordering::Less);
+        assert_eq!(u_fixed::<3>::from_data([1, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 1, 0])), Ordering::Less);
+        assert_eq!(u_fixed::<3>::from_data([1, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 0, 1])), Ordering::Less);
+        assert_eq!(u_fixed::<3>::from_data([1, 0, 1]).cmp(&u_fixed::<3>::from_data([0, 1, 1])), Ordering::Less);
+        assert_eq!(u_fixed::<3>::from_data([1, 0, 1]).cmp(&u_fixed::<3>::from_data([2, 0, 1])), Ordering::Less);
+        assert_eq!(u_fixed::<3>::from_data([2, 0, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 1])), Ordering::Greater);
+        assert_eq!(u_fixed::<3>::from_data([1, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 0, 0])), Ordering::Greater);
+        assert_eq!(u_fixed::<3>::from_data([0, 1, 0]).cmp(&u_fixed::<3>::from_data([0, 0, 0])), Ordering::Greater);
+        assert_eq!(u_fixed::<3>::from_data([0, 1, 0]).cmp(&u_fixed::<3>::from_data([1, 0, 0])), Ordering::Greater);
+        assert_eq!(u_fixed::<3>::from_data([0, 0, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 0])), Ordering::Greater);
+        assert_eq!(u_fixed::<3>::from_data([0, 1, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 1])), Ordering::Greater);
+        assert_eq!(u_fixed::<3>::from_data([2, 0, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 1])), Ordering::Greater);
     }
 }
