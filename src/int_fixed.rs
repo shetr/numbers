@@ -7,6 +7,7 @@ use std::ops::*;
 // note: don't be scared of the amount of work, once I implement this once, the others will be easy, just a lot of refactor
 // comparison operators
 // binary operators
+// implement shift only for primitive types - for indexing reasons
 // addition
 // multiplication
 // division
@@ -277,6 +278,33 @@ impl<const N: usize, const S: bool> Not for IntFixed<{N}, {S}> {
             out.data[i] = !out.data[i];
         }
         out
+    }
+}
+
+// TODO: replace usize with generic unsigned int
+impl<const N: usize, const S: bool> Shl<usize> for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        let mut out = self;
+        out <<= rhs;
+        out
+    }
+}
+
+// TODO: replace usize with generic unsigned int
+impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
+    fn shl_assign(&mut self, rhs: usize) {
+        let block_bits = mem::size_of::<u64>()*8;
+        let block_shift = rhs / block_bits;
+        let local_shift = rhs - block_shift * block_bits;
+        for i in (0..N).rev() {
+            let left_part_idx = i as isize - block_shift as isize;
+            let right_part_idx = left_part_idx - 1;
+            let left_part = if left_part_idx >= 0 { self.data[left_part_idx as usize] << local_shift } else { 0u64 };
+            let right_part = if right_part_idx >= 0 { self.data[right_part_idx as usize] >> (block_bits - local_shift) } else { 0u64 };
+            self.data[i] = left_part & right_part;
+        }
     }
 }
 
