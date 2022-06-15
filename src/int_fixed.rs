@@ -1,7 +1,10 @@
+use crate::common;
+
 use std::cmp::{Ord, Eq, PartialEq, PartialOrd, Ordering};
 use std::fmt;
 use std::mem;
 use std::ops::*;
+
 
 // TODO:
 // note: don't be scared of the amount of work, once I implement this once, the others will be easy, just a lot of refactor
@@ -292,7 +295,7 @@ impl<const N: usize, const S: bool> Shl<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-// TODO: replace usize with generic unsigned int
+// TODO: replace usize with generic unsigned int, move implementation to some common place
 impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
     fn shl_assign(&mut self, rhs: usize) {
         let block_bits = mem::size_of::<u64>()*8;
@@ -308,6 +311,62 @@ impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
     }
 }
 
+// TODO: replace usize with generic unsigned int
+impl<const N: usize, const S: bool> Shr<usize> for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        let mut out = self;
+        out >>= rhs;
+        out
+    }
+}
+
+// TODO: replace usize with generic unsigned int
+// move implementation to some common place, or maybe << and >> can be generalized with same function (inversing index order)
+impl<const N: usize, const S: bool> ShrAssign<usize> for IntFixed<{N}, {S}> {
+    fn shr_assign(&mut self, rhs: usize) {
+        let block_bits = mem::size_of::<u64>()*8;
+        let block_shift = rhs / block_bits;
+        let local_shift = rhs - block_shift * block_bits;
+        for i in 0..N {
+            let right_part_idx = i + block_shift;
+            let left_part_idx = right_part_idx + 1;
+            let right_part = if right_part_idx < N { self.data[right_part_idx] >> local_shift } else { 0u64 };
+            let left_part = if left_part_idx < N { self.data[left_part_idx] << (block_bits - local_shift) } else { 0u64 };
+            self.data[i] = left_part & right_part;
+        }
+    }
+}
+
+impl<const N: usize, const S: bool> Add for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        let mut out = self;
+        out += other;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> AddAssign for IntFixed<{N}, {S}> {
+    fn add_assign(&mut self, other: Self) {
+        let mut overflow = 0u64;
+        let half_bits = mem::size_of::<u64>()*4;
+        let right_mask = u64::MAX >> half_bits;
+        for i in 0..N {
+            let a = self.data[i];
+            let b = other.data[i];
+            let right_sum = overflow + a & right_mask + b & right_mask;
+            let right_overflow = right_sum >> half_bits;
+            let left_sum = right_overflow + (a >> half_bits) + (b >> half_bits);
+            self.data[i] = (left_sum << half_bits) + right_sum & right_mask;
+            overflow = left_sum >> half_bits;
+        }
+    }
+}
+
+// replace with u_f and i_f
 #[allow(non_camel_case_types)]
 pub type u_fixed<const N: usize> = IntFixed<N, false>;
 #[allow(non_camel_case_types)]
