@@ -352,16 +352,8 @@ impl<const N: usize, const S: bool> Add for IntFixed<{N}, {S}> {
 impl<const N: usize, const S: bool> AddAssign for IntFixed<{N}, {S}> {
     fn add_assign(&mut self, other: Self) {
         let mut overflow = 0u64;
-        let half_bits = mem::size_of::<u64>()*4;
-        let right_mask = u64::MAX >> half_bits;
         for i in 0..N {
-            let a = self.data[i];
-            let b = other.data[i];
-            let right_sum = overflow + a & right_mask + b & right_mask;
-            let right_overflow = right_sum >> half_bits;
-            let left_sum = right_overflow + (a >> half_bits) + (b >> half_bits);
-            self.data[i] = (left_sum << half_bits) + right_sum & right_mask;
-            overflow = left_sum >> half_bits;
+            (self.data[i], overflow) = common::add_with_overflow(self.data[i], other.data[i], overflow);
         }
     }
 }
