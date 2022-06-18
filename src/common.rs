@@ -10,12 +10,48 @@ const U64_HEX_CHAR_COUNT: usize = mem::size_of::<u64>()*2;
 
 // overflow shloud be 0 or 1, returns (addition, overflow)
 pub fn add_with_overflow(a: u64, b: u64, overflow: u64) -> (u64, u64) {
-    let right_sum = overflow + a & U64_LOWER_MASK + b & U64_LOWER_MASK;
+    let right_sum = overflow + (a & U64_LOWER_MASK) + (b & U64_LOWER_MASK);
     let right_overflow = right_sum >> U64_HALF_BITS_COUNT;
     let left_sum = right_overflow + (a >> U64_HALF_BITS_COUNT) + (b >> U64_HALF_BITS_COUNT);
-    let out_sum = (left_sum << U64_HALF_BITS_COUNT) + right_sum & U64_LOWER_MASK;
+    let out_sum = (left_sum << U64_HALF_BITS_COUNT) + (right_sum & U64_LOWER_MASK);
     let out_overflow = left_sum >> U64_HALF_BITS_COUNT;
     return (out_sum, out_overflow);
+}
+
+// maybe we can somehow generalize add and mul?
+
+pub fn mul_with_overflow(a: u64, b: u64) -> (u64, u64) {
+    // completely wrong, it must be done from 4 multiplications
+    let right_mul = (a & U64_LOWER_MASK) * (b & U64_LOWER_MASK);
+    let right_overflow = right_mul >> U64_HALF_BITS_COUNT; // TODO: add right overflow 
+    let left_mul = (a >> U64_HALF_BITS_COUNT) * (b >> U64_HALF_BITS_COUNT);
+    let out_mul = (left_mul << U64_HALF_BITS_COUNT) + right_mul & U64_LOWER_MASK;
+    let out_overflow = left_mul >> U64_HALF_BITS_COUNT;
+    return (out_mul, out_overflow);
+}
+
+pub fn shift_parts(shift: usize) -> (usize, usize) {
+    let block_shift = shift / U64_BITS_COUNT;
+    let local_shift = shift - block_shift * U64_BITS_COUNT;
+    (block_shift, local_shift)
+}
+
+// TODO: maybe generalize shl_block and shr_block with same function
+
+pub fn shl_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usize) -> u64 {
+    let left_part_idx = idx as isize - block_shift as isize;
+    let right_part_idx = left_part_idx - 1;
+    let left_part = if left_part_idx >= 0 { data[left_part_idx as usize] << local_shift } else { 0u64 };
+    let right_part = if right_part_idx >= 0 { data[right_part_idx as usize] >> (U64_BITS_COUNT - local_shift) } else { 0u64 };
+    left_part & right_part
+}
+
+pub fn shr_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usize) -> u64 {
+    let right_part_idx = idx + block_shift;
+    let left_part_idx = right_part_idx + 1;
+    let right_part = if right_part_idx < data.len() { data[right_part_idx] >> local_shift } else { 0u64 };
+    let left_part = if left_part_idx < data.len() { data[left_part_idx] << (U64_BITS_COUNT - local_shift) } else { 0u64 };
+    left_part & right_part
 }
 
 pub fn to_hex(data: &[u64]) -> String {

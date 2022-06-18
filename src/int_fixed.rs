@@ -241,18 +241,11 @@ impl<const N: usize, const S: bool> Shl<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-// TODO: replace usize with generic unsigned int, move implementation to some common place
 impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
     fn shl_assign(&mut self, rhs: usize) {
-        let block_bits = mem::size_of::<u64>()*8;
-        let block_shift = rhs / block_bits;
-        let local_shift = rhs - block_shift * block_bits;
+        let (block_shift, local_shift) = common::shift_parts(rhs);
         for i in (0..N).rev() {
-            let left_part_idx = i as isize - block_shift as isize;
-            let right_part_idx = left_part_idx - 1;
-            let left_part = if left_part_idx >= 0 { self.data[left_part_idx as usize] << local_shift } else { 0u64 };
-            let right_part = if right_part_idx >= 0 { self.data[right_part_idx as usize] >> (block_bits - local_shift) } else { 0u64 };
-            self.data[i] = left_part & right_part;
+            self.data[i] = common::shl_block(i, &self.data, block_shift, local_shift);
         }
     }
 }
@@ -267,19 +260,11 @@ impl<const N: usize, const S: bool> Shr<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-// TODO: replace usize with generic unsigned int
-// move implementation to some common place, or maybe << and >> can be generalized with same function (inversing index order)
 impl<const N: usize, const S: bool> ShrAssign<usize> for IntFixed<{N}, {S}> {
     fn shr_assign(&mut self, rhs: usize) {
-        let block_bits = mem::size_of::<u64>()*8;
-        let block_shift = rhs / block_bits;
-        let local_shift = rhs - block_shift * block_bits;
+        let (block_shift, local_shift) = common::shift_parts(rhs);
         for i in 0..N {
-            let right_part_idx = i + block_shift;
-            let left_part_idx = right_part_idx + 1;
-            let right_part = if right_part_idx < N { self.data[right_part_idx] >> local_shift } else { 0u64 };
-            let left_part = if left_part_idx < N { self.data[left_part_idx] << (block_bits - local_shift) } else { 0u64 };
-            self.data[i] = left_part & right_part;
+            self.data[i] = common::shr_block(i, &self.data, block_shift, local_shift);
         }
     }
 }
@@ -300,6 +285,34 @@ impl<const N: usize, const S: bool> AddAssign for IntFixed<{N}, {S}> {
         for i in 0..N {
             (self.data[i], overflow) = common::add_with_overflow(self.data[i], other.data[i], overflow);
         }
+    }
+}
+
+impl<const N: usize, const S: bool> Mul for IntFixed<{N}, {S}> {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        //let mut out = self;
+        //out *= other;
+        //out
+        let mut out = IntFixed::<N,S>::zero();
+        for left_idx in 0..N {
+            let mut overflow = 0u64;
+            for right_idx in 0..N {
+                let out_idx = left_idx + right_idx;
+                if out_idx >= N { break; }
+                let (mul_res, next_overflow) = mul_block(self.data[left_idx], other.data[right_idx]);
+                out.data[out_idx] += mul_res + overflow;
+                overflow = next_overflow;
+            }
+        }
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> MulAssign for IntFixed<{N}, {S}> {
+    fn mul_assign(&mut self, other: Self) {
+        *self = *self * other;
     }
 }
 
