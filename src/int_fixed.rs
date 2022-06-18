@@ -9,7 +9,6 @@ use std::ops::*;
 // TODO:
 // note: don't be scared of the amount of work, once I implement this once, the others will be easy, just a lot of refactor
 // comparison operators
-// binary operators
 // implement shift only for primitive types - for indexing reasons
 // addition
 // multiplication
@@ -96,29 +95,11 @@ impl<const N: usize, const S: bool> IntFixed<{N}, {S}> {
     }
 
     fn to_hex(&self) -> String {
-        // TODO: abstract the implementation away
-        let bit_size = mem::size_of::<u64>()*8;
-        let chunk_size = mem::size_of::<u64>()*2;
-        let mut hex = String::with_capacity(N*chunk_size);
-        let mut only_zeros = true;
-        for chunk in self.data.iter().rev() {
-            let mut bit_mask: u64 = 0xF << (bit_size - 4);
-            for i in (0..chunk_size).rev() {
-                let masked = chunk & bit_mask;
-                if masked != 0 {
-                    only_zeros = false;
-                }
-                if !only_zeros {
-                    let val = (masked >> i * 4) as u8;
-                    hex.push(((if val < 10 { '0' as u8 + val} else { 'a' as u8 + val - 10})) as char);
-                }
-                bit_mask >>= 4;
-            }
-        }
-        if only_zeros {
-            hex.push('0');
-        }
-        hex
+        common::to_hex(&self.data)
+    }
+
+    fn to_binary(&self) -> String {
+        common::to_binary(&self.data)
     }
 }
 
@@ -131,27 +112,7 @@ impl<const N: usize, const S: bool> fmt::Display for IntFixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> fmt::Binary for IntFixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: abstract the implementation away
-        let chunk_size = mem::size_of::<u64>()*8;
-        let mut bin = String::with_capacity(N*chunk_size);
-        let mut only_zeros = true;
-        for chunk in self.data.iter().rev() {
-            let mut bit_mask: u64 = 1 << (chunk_size - 1);
-            for _ in (0..chunk_size).rev() {
-                let is_zero = chunk & bit_mask == 0;
-                if !is_zero {
-                    only_zeros = false;
-                }
-                if !only_zeros {
-                    bin.push(if is_zero {'0'} else {'1'});
-                }
-                bit_mask >>= 1;
-            }
-        }
-        if only_zeros {
-            bin.push('0');
-        }
-        f.pad_integral(true, "0b", &bin)
+        f.pad_integral(true, "0b", &self.to_binary())
     }
 }
 
@@ -164,20 +125,6 @@ impl<const N: usize, const S: bool> fmt::LowerHex for IntFixed<{N}, {S}> {
 impl<const N: usize, const S: bool> fmt::UpperHex for IntFixed<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad_integral(true, "0x", &self.to_hex().to_uppercase())
-    }
-}
-
-impl<const N: usize, const S: bool> fmt::LowerExp for IntFixed<{N}, {S}> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: implement + test, needs similar implementation as fmt::Display
-        write!(f, "{}", "")
-    }
-}
-
-impl<const N: usize, const S: bool> fmt::UpperExp for IntFixed<{N}, {S}> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: implement + test, use fmt::LowerExp
-        write!(f, "{}", "")
     }
 }
 
@@ -284,7 +231,6 @@ impl<const N: usize, const S: bool> Not for IntFixed<{N}, {S}> {
     }
 }
 
-// TODO: replace usize with generic unsigned int
 impl<const N: usize, const S: bool> Shl<usize> for IntFixed<{N}, {S}> {
     type Output = Self;
 
@@ -311,7 +257,6 @@ impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-// TODO: replace usize with generic unsigned int
 impl<const N: usize, const S: bool> Shr<usize> for IntFixed<{N}, {S}> {
     type Output = Self;
 
