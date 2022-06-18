@@ -1,6 +1,6 @@
 # numbers
 
-Implementation of several number types.
+Implementation of several number types just for fun. For practical applications use something like [num](https://docs.rs/num/latest/num/) crate.
 
 ## To-Dos
 
