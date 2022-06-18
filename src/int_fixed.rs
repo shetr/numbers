@@ -283,7 +283,7 @@ impl<const N: usize, const S: bool> AddAssign for IntFixed<{N}, {S}> {
     fn add_assign(&mut self, other: Self) {
         let mut overflow = 0u64;
         for i in 0..N {
-            (self.data[i], overflow) = common::add_with_overflow(self.data[i], other.data[i], overflow);
+            (self.data[i], overflow) = common::add_inout_overflow(self.data[i], other.data[i], overflow);
         }
     }
 }
@@ -292,18 +292,18 @@ impl<const N: usize, const S: bool> Mul for IntFixed<{N}, {S}> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        //let mut out = self;
-        //out *= other;
-        //out
         let mut out = IntFixed::<N,S>::zero();
         for left_idx in 0..N {
             let mut overflow = 0u64;
             for right_idx in 0..N {
                 let out_idx = left_idx + right_idx;
                 if out_idx >= N { break; }
-                let (mul_res, next_overflow) = mul_block(self.data[left_idx], other.data[right_idx]);
-                out.data[out_idx] += mul_res + overflow;
-                overflow = next_overflow;
+                
+                let accumulator = &mut out.data[out_idx];
+                let left = self.data[left_idx];
+                let right = other.data[right_idx];
+
+                (*accumulator, overflow) = common::mul_inout_overflow_acc(left, right, overflow, *accumulator);
             }
         }
         out

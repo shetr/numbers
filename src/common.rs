@@ -8,26 +8,68 @@ const U64_LOWER_MASK: u64 = u64::MAX >> U64_HALF_BITS_COUNT;
 //const U64_UPPER_MASK: u64 = u64::MAX << U64_HALF_BITS_COUNT;
 const U64_HEX_CHAR_COUNT: usize = mem::size_of::<u64>()*2;
 
-// overflow shloud be 0 or 1, returns (addition, overflow)
-pub fn add_with_overflow(a: u64, b: u64, overflow: u64) -> (u64, u64) {
-    let right_sum = overflow + (a & U64_LOWER_MASK) + (b & U64_LOWER_MASK);
-    let right_overflow = right_sum >> U64_HALF_BITS_COUNT;
-    let left_sum = right_overflow + (a >> U64_HALF_BITS_COUNT) + (b >> U64_HALF_BITS_COUNT);
-    let out_sum = (left_sum << U64_HALF_BITS_COUNT) + (right_sum & U64_LOWER_MASK);
-    let out_overflow = left_sum >> U64_HALF_BITS_COUNT;
+fn mask_lower(n: u64) -> u64 {
+    n & U64_LOWER_MASK
+}
+
+fn upper_to_lower(n: u64) -> u64 {
+    n >> U64_HALF_BITS_COUNT
+}
+
+fn lower_to_upper(n: u64) -> u64 {
+    n << U64_HALF_BITS_COUNT
+}
+
+fn join_upper_lower(upper: u64, lower: u64) -> u64 {
+    lower_to_upper(upper) + mask_lower(lower)
+}
+
+// prev_overflow and returned overflow shloud be 0 or 1, returns (addition, overflow)
+pub fn add_inout_overflow(a: u64, b: u64, in_overflow: u64) -> (u64, u64) {
+    let lower_sum = in_overflow + mask_lower(a) + mask_lower(b);
+    let lower_overflow = upper_to_lower(lower_sum);
+    let upper_sum = lower_overflow + upper_to_lower(a) + upper_to_lower(b);
+    let out_sum = join_upper_lower(upper_sum, lower_sum);
+    let out_overflow = upper_to_lower(upper_sum);
     return (out_sum, out_overflow);
 }
 
-// maybe we can somehow generalize add and mul?
+fn add3_out_overflow(a: u64, b: u64, c: u64) -> (u64, u64) {
+    let lower_sum = mask_lower(a) + mask_lower(b) + mask_lower(c);
+    let lower_overflow = upper_to_lower(lower_sum);
+    let upper_sum = lower_overflow + upper_to_lower(a) + upper_to_lower(b) + upper_to_lower(c);
+    let out_sum = join_upper_lower(upper_sum, lower_sum);
+    let out_overflow = upper_to_lower(upper_sum);
+    return (out_sum, out_overflow);
+}
 
-pub fn mul_with_overflow(a: u64, b: u64) -> (u64, u64) {
-    // completely wrong, it must be done from 4 multiplications
-    let right_mul = (a & U64_LOWER_MASK) * (b & U64_LOWER_MASK);
-    let right_overflow = right_mul >> U64_HALF_BITS_COUNT; // TODO: add right overflow 
-    let left_mul = (a >> U64_HALF_BITS_COUNT) * (b >> U64_HALF_BITS_COUNT);
-    let out_mul = (left_mul << U64_HALF_BITS_COUNT) + right_mul & U64_LOWER_MASK;
-    let out_overflow = left_mul >> U64_HALF_BITS_COUNT;
+fn mul_upper_half_out_overflow(a: u64, b: u64) -> (u64, u64) {
+    let mul = a * b;
+    (lower_to_upper(mul), upper_to_lower(mul))
+}
+
+fn mul_out_overflow(a: u64, b: u64) -> (u64, u64) {
+    let a0 = mask_lower(a);
+    let a1 = upper_to_lower(a);
+    let b0 = mask_lower(b);
+    let b1 = upper_to_lower(b);
+
+    let a0b0 =  a0*b0;
+    let (m_a0b1, o_a0b1) =  mul_upper_half_out_overflow(a0, b1);
+    let (m_a1b0, o_a1b0) =  mul_upper_half_out_overflow(a1, b0);
+    let a1b1 =  a1*b1;
+
+    let (out_mul, o_a0b0_m_a0b1_m_a1b0) = add3_out_overflow(a0b0, m_a0b1, m_a1b0);
+    let out_overflow = o_a0b1 + o_a1b0 + a1b1 + o_a0b0_m_a0b1_m_a1b0;
+
     return (out_mul, out_overflow);
+}
+
+pub fn mul_inout_overflow_acc(a: u64, b: u64, in_overflow: u64, accumulator: u64) -> (u64, u64) {
+    let (mul_res, mul_overflow) = mul_out_overflow(a, b);
+    let (add_res, add_overflow) = add3_out_overflow(accumulator, mul_res, in_overflow);
+    let out_overflow = mul_overflow + add_overflow;
+    (add_res, out_overflow)
 }
 
 pub fn shift_parts(shift: usize) -> (usize, usize) {
