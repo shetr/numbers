@@ -24,7 +24,7 @@ fn join_upper_lower(upper: u64, lower: u64) -> u64 {
     lower_to_upper(upper) + mask_lower(lower)
 }
 
-// prev_overflow and returned overflow shloud be 0 or 1, returns (addition, overflow)
+// prev_overflow and returned overflow should be 0 or 1, returns (addition, overflow)
 pub fn add_inout_overflow(a: u64, b: u64, in_overflow: u64) -> (u64, u64) {
     let lower_sum = in_overflow + mask_lower(a) + mask_lower(b);
     let lower_overflow = upper_to_lower(lower_sum);
@@ -49,6 +49,7 @@ fn mul_upper_half_out_overflow(a: u64, b: u64) -> (u64, u64) {
 }
 
 fn mul_out_overflow(a: u64, b: u64) -> (u64, u64) {
+    // TODO: add description why it behaves correctly
     let a0 = mask_lower(a);
     let a1 = upper_to_lower(a);
     let b0 = mask_lower(b);
