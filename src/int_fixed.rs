@@ -295,9 +295,9 @@ impl<const N: usize, const S: bool> Mul for IntFixed<{N}, {S}> {
         let mut out = IntFixed::<N,S>::zero();
         for left_idx in 0..N {
             let mut overflow = 0u64;
-            for right_idx in 0..N {
+            // end early (N - left_idx), results after that are overflowing the fixed int of size N
+            for right_idx in 0..(N - left_idx) {
                 let out_idx = left_idx + right_idx;
-                if out_idx >= N { break; }
                 
                 let accumulator = &mut out.data[out_idx];
                 let left = self.data[left_idx];
@@ -312,6 +312,34 @@ impl<const N: usize, const S: bool> Mul for IntFixed<{N}, {S}> {
 
 impl<const N: usize, const S: bool> MulAssign for IntFixed<{N}, {S}> {
     fn mul_assign(&mut self, other: Self) {
+        // possible implementation with diagonals for in-place evaluation:
+        // maybe move this to its own function mul_assign_inplace
+        // going by the diagonals with same index sum of the inputs = out index
+        // let mut overflow = 0u64;
+        // the seccond overflow is enough only if N is not bigger than max number inside used primitive type (here u64, which makes it fine)
+        // but it could cause problems when generalizing to arbitrary primitive integer type
+        // on the other hand this could be also huge optimization for dynamic integers
+        // let mut overflow_overflow = 0u64;
+        // for out_idx in 0..N {
+        //     let mut accumulator = overflow;
+        //     overflow = overflow_overflow;
+        //     overflow_overflow = 0u64;
+        //     for left_idx in 0..(out_idx + 1) {
+        //         let right_idx = out_idx - left_idx;
+        //
+        //         let left = self.data[left_idx];
+        //         let right = other.data[right_idx];
+        //         
+        //         let mut new_overflow = 0;
+        //         let mut new_overflow_overflow = 0;
+        //         (accumulator, new_overflow) = common::mul_out_overflow_acc(left, right, accumulator);
+        //         (overflow, new_overflow_overflow) = add_out_overflow(verflow, new_overflow);
+        //         overflow_overflow += new_overflow_overflow;
+        //     }
+        //     self.data[out_idx] = accumulator;
+        // }
+
+        // because of complications described above using mul implementation
         *self = *self * other;
     }
 }
