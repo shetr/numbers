@@ -20,44 +20,46 @@ use std::ops::*;
 // conversion operators, both from basic types and types defined here (even different sizes of this type)
 // constructor from string, base 10, 2, hex (maybe even general base)
 // make general utils for some functions like binary and hex fmt
-// create general number traits and use one of them for type of data inside IntFixed
+// create general number traits and use one of them for type of data inside IntStatic
 // write documentation
 // cover everything with unit tests
 // lower/upper exp fmt
 // when killing time: octal fmt
 // maybe do wrapping/saturating variant
+// in number traits create some trait for from_signed, to_singned, from_unsigned and to_unsigned
+// also create some trait for getting 2x sized type of a primitive type and getting 1/2 primitive type
 
 #[derive(Debug, Copy, Clone)] // TODO: maybe implemet with Display, because normal numbers have it like that (I think)
-pub struct IntFixed<const N: usize, const S: bool>
+pub struct IntStatic<const N: usize, const S: bool>
 {
     data: [u64; N]
 }
 
-impl<const N: usize, const S: bool> IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
 
     pub fn zero() -> Self {
-        IntFixed::bit_min()
+        IntStatic::bit_min()
     }
 
     pub fn one() -> Self {
-        IntFixed::from_num(1)
+        IntStatic::from_num(1)
     }
 
     pub fn bit_min() -> Self {
-        IntFixed::filled(0)
+        IntStatic::filled(0)
     }
 
     pub fn bit_max() -> Self {
-        IntFixed::filled(u64::MAX)
+        IntStatic::filled(u64::MAX)
     }
 
     pub fn min() -> Self {
         if S {
             let mut data: [u64; N] = [0; N];
             data[data.len()-1] = 1 << (mem::size_of::<u64>()*8 - 1);
-            IntFixed { data }
+            IntStatic { data }
         } else {
-            IntFixed::bit_min()
+            IntStatic::bit_min()
         }
     }
 
@@ -65,25 +67,25 @@ impl<const N: usize, const S: bool> IntFixed<{N}, {S}> {
         if S {
             let mut data: [u64; N] = [u64::MAX; N];
             data[data.len()-1] = !(1 << (mem::size_of::<u64>()*8 - 1));
-            IntFixed { data }
+            IntStatic { data }
         } else {
-            IntFixed::bit_max()
+            IntStatic::bit_max()
         }
     }
 
     pub fn from_num(num: u64) -> Self {
         let mut data: [u64; N] = [0; N];
         data[0] = num;
-        IntFixed { data }
+        IntStatic { data }
     }
 
     pub fn filled(num: u64) -> Self {
         let data: [u64; N] = [num; N];
-        IntFixed { data }
+        IntStatic { data }
     }
 
     pub fn from_data(data: [u64; N]) -> Self {
-        IntFixed { data }
+        IntStatic { data }
     }
 
     pub fn get_data(&self) -> &[u64; N] {
@@ -103,32 +105,32 @@ impl<const N: usize, const S: bool> IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> fmt::Display for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> fmt::Display for IntStatic<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: real implementation with division + test
         write!(f, "{}", self.data[0])
     }
 }
 
-impl<const N: usize, const S: bool> fmt::Binary for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> fmt::Binary for IntStatic<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad_integral(true, "0b", &self.to_binary())
     }
 }
 
-impl<const N: usize, const S: bool> fmt::LowerHex for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> fmt::LowerHex for IntStatic<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad_integral(true, "0x", &self.to_hex())
     }
 }
 
-impl<const N: usize, const S: bool> fmt::UpperHex for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> fmt::UpperHex for IntStatic<{N}, {S}> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad_integral(true, "0x", &self.to_hex().to_uppercase())
     }
 }
 
-impl<const N: usize, const S: bool> Ord for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> Ord for IntStatic<{N}, {S}> {
     fn cmp(&self, other: &Self) -> Ordering {
         if S {
             // FIXME: implement for signed
@@ -146,15 +148,15 @@ impl<const N: usize, const S: bool> Ord for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> Eq for IntFixed<{N}, {S}> {}
+impl<const N: usize, const S: bool> Eq for IntStatic<{N}, {S}> {}
 
-impl<const N: usize, const S: bool> PartialOrd for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> PartialOrd for IntStatic<{N}, {S}> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<const N: usize, const S: bool> PartialEq for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> PartialEq for IntStatic<{N}, {S}> {
     fn eq(&self, other: &Self) -> bool {
         for i in (0..self.data.len()).rev() {
             if self.data[i] != other.data[i] {
@@ -165,7 +167,7 @@ impl<const N: usize, const S: bool> PartialEq for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> BitAnd for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> BitAnd for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -175,7 +177,7 @@ impl<const N: usize, const S: bool> BitAnd for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> BitAndAssign for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> BitAndAssign for IntStatic<{N}, {S}> {
     fn bitand_assign(&mut self, rhs: Self) {
         for i in 0..N {
             self.data[i] &= rhs.data[i];
@@ -183,7 +185,7 @@ impl<const N: usize, const S: bool> BitAndAssign for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> BitOr for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> BitOr for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -193,7 +195,7 @@ impl<const N: usize, const S: bool> BitOr for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> BitOrAssign for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> BitOrAssign for IntStatic<{N}, {S}> {
     fn bitor_assign(&mut self, rhs: Self) {
         for i in 0..N {
             self.data[i] |= rhs.data[i];
@@ -201,7 +203,7 @@ impl<const N: usize, const S: bool> BitOrAssign for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> BitXor for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> BitXor for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
@@ -211,7 +213,7 @@ impl<const N: usize, const S: bool> BitXor for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> BitXorAssign for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> BitXorAssign for IntStatic<{N}, {S}> {
     fn bitxor_assign(&mut self, rhs: Self) {
         for i in 0..N {
             self.data[i] ^= rhs.data[i];
@@ -219,7 +221,7 @@ impl<const N: usize, const S: bool> BitXorAssign for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> Not for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> Not for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -231,7 +233,7 @@ impl<const N: usize, const S: bool> Not for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> Shl<usize> for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> Shl<usize> for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn shl(self, rhs: usize) -> Self::Output {
@@ -241,7 +243,7 @@ impl<const N: usize, const S: bool> Shl<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> ShlAssign<usize> for IntStatic<{N}, {S}> {
     fn shl_assign(&mut self, rhs: usize) {
         let (block_shift, local_shift) = common::shift_parts(rhs);
         for i in (0..N).rev() {
@@ -250,7 +252,7 @@ impl<const N: usize, const S: bool> ShlAssign<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> Shr<usize> for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> Shr<usize> for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn shr(self, rhs: usize) -> Self::Output {
@@ -260,7 +262,7 @@ impl<const N: usize, const S: bool> Shr<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> ShrAssign<usize> for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> ShrAssign<usize> for IntStatic<{N}, {S}> {
     fn shr_assign(&mut self, rhs: usize) {
         let (block_shift, local_shift) = common::shift_parts(rhs);
         for i in 0..N {
@@ -269,7 +271,7 @@ impl<const N: usize, const S: bool> ShrAssign<usize> for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> Add for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> Add for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -279,7 +281,7 @@ impl<const N: usize, const S: bool> Add for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> AddAssign for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> AddAssign for IntStatic<{N}, {S}> {
     fn add_assign(&mut self, other: Self) {
         let mut overflow = 0u64;
         for i in 0..N {
@@ -288,14 +290,14 @@ impl<const N: usize, const S: bool> AddAssign for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> Mul for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> Mul for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        let mut out = IntFixed::<N,S>::zero();
+        let mut out = IntStatic::<N,S>::zero();
         for left_idx in 0..N {
             let mut overflow = 0u64;
-            // end early (N - left_idx), results after that are overflowing the fixed int of size N
+            // end early (N - left_idx), results after that are overflowing the static int of size N
             for right_idx in 0..(N - left_idx) {
                 let out_idx = left_idx + right_idx;
                 
@@ -310,7 +312,7 @@ impl<const N: usize, const S: bool> Mul for IntFixed<{N}, {S}> {
     }
 }
 
-impl<const N: usize, const S: bool> MulAssign for IntFixed<{N}, {S}> {
+impl<const N: usize, const S: bool> MulAssign for IntStatic<{N}, {S}> {
     fn mul_assign(&mut self, other: Self) {
         // possible implementation with diagonals for in-place evaluation:
         // maybe move this to its own function mul_assign_inplace
@@ -344,11 +346,74 @@ impl<const N: usize, const S: bool> MulAssign for IntFixed<{N}, {S}> {
     }
 }
 
-// replace with u_f and i_f
 #[allow(non_camel_case_types)]
-pub type u_fixed<const N: usize> = IntFixed<N, false>;
+pub type u_static<const N: usize> = IntStatic<N, false>;
 #[allow(non_camel_case_types)]
-pub type i_fixed<const N: usize> = IntFixed<N, true>;
+pub type i_static<const N: usize> = IntStatic<N, true>;
+
+#[allow(non_camel_case_types)]
+pub type u_s<const N: usize> = IntStatic<N, false>;
+#[allow(non_camel_case_types)]
+pub type i_s<const N: usize> = IntStatic<N, true>;
+
+#[allow(non_camel_case_types)]
+pub type u192 = IntStatic<3, false>;
+#[allow(non_camel_case_types)]
+pub type u256 = IntStatic<4, false>;
+#[allow(non_camel_case_types)]
+pub type u320 = IntStatic<5, false>;
+#[allow(non_camel_case_types)]
+pub type u384 = IntStatic<6, false>;
+#[allow(non_camel_case_types)]
+pub type u448 = IntStatic<7, false>;
+#[allow(non_camel_case_types)]
+pub type u512 = IntStatic<8, false>;
+#[allow(non_camel_case_types)]
+pub type u576 = IntStatic<9, false>;
+#[allow(non_camel_case_types)]
+pub type u640 = IntStatic<10, false>;
+#[allow(non_camel_case_types)]
+pub type u704 = IntStatic<11, false>;
+#[allow(non_camel_case_types)]
+pub type u768 = IntStatic<12, false>;
+#[allow(non_camel_case_types)]
+pub type u832 = IntStatic<13, false>;
+#[allow(non_camel_case_types)]
+pub type u896 = IntStatic<14, false>;
+#[allow(non_camel_case_types)]
+pub type u960 = IntStatic<15, false>;
+#[allow(non_camel_case_types)]
+pub type u1024 = IntStatic<16, false>;
+
+#[allow(non_camel_case_types)]
+pub type i192 = IntStatic<3, true>;
+#[allow(non_camel_case_types)]
+pub type i256 = IntStatic<4, true>;
+#[allow(non_camel_case_types)]
+pub type i320 = IntStatic<5, true>;
+#[allow(non_camel_case_types)]
+pub type i384 = IntStatic<6, true>;
+#[allow(non_camel_case_types)]
+pub type i448 = IntStatic<7, true>;
+#[allow(non_camel_case_types)]
+pub type i512 = IntStatic<8, true>;
+#[allow(non_camel_case_types)]
+pub type i576 = IntStatic<9, true>;
+#[allow(non_camel_case_types)]
+pub type i640 = IntStatic<10, true>;
+#[allow(non_camel_case_types)]
+pub type i704 = IntStatic<11, true>;
+#[allow(non_camel_case_types)]
+pub type i768 = IntStatic<12, true>;
+#[allow(non_camel_case_types)]
+pub type i832 = IntStatic<13, true>;
+#[allow(non_camel_case_types)]
+pub type i896 = IntStatic<14, true>;
+#[allow(non_camel_case_types)]
+pub type i960 = IntStatic<15, true>;
+#[allow(non_camel_case_types)]
+pub type i1024 = IntStatic<16, true>;
+
 
 #[cfg(test)]
 mod tests {
@@ -356,190 +421,190 @@ mod tests {
     use super::*;
 
     #[test]
-    fn int_fixed_zero() {
+    fn int_static_zero() {
         let data: [u64; 3] = [0; 3];
-        let num = u_fixed::<3>::zero();
+        let num = u_s::<3>::zero();
         assert_eq!(*num.get_data(), data);
     }
 
     #[test]
-    fn int_fixed_from_data() {
+    fn int_static_from_data() {
         let data: [u64; 4] = [1, 2, 3, 4];
-        let num = u_fixed::<4>::from_data(data);
+        let num = u_s::<4>::from_data(data);
         assert_eq!(*num.get_data(), data);
     }
 
     #[test]
-    fn int_fixed_to_string() {
-        let num = u_fixed::<4>::from_data([1, 2, 3, 4]);
+    fn int_static_to_string() {
+        let num = u_s::<4>::from_data([1, 2, 3, 4]);
         assert_eq!(num.to_string(), "1");
     }
 
     #[test]
-    fn int_fixed_to_binary_string() {
+    fn int_static_to_binary_string() {
         assert_eq!(
-            format!("{:b}", u_fixed::<2>::from_data([1, u64::MAX])),
+            format!("{:b}", u_s::<2>::from_data([1, u64::MAX])),
             "11111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000001"
         );
         assert_eq!(
-            format!("{:b}", u_fixed::<2>::from_data([3, 1])),
+            format!("{:b}", u_s::<2>::from_data([3, 1])),
             "10000000000000000000000000000000000000000000000000000000000000011"
         );
     }
 
     #[test]
-    fn int_fixed_to_binary_string_u64() {
+    fn int_static_to_binary_string_u64() {
         assert_eq!(
-            format!("{:b}", u_fixed::<1>::from_num(1)),
+            format!("{:b}", u_s::<1>::from_num(1)),
             format!("{:b}", 1)
         );
         assert_eq!(
-            format!("{:b}", i_fixed::<1>::from_num(1)),
+            format!("{:b}", i_s::<1>::from_num(1)),
             format!("{:b}", 1)
         );
         assert_eq!(
-            format!("{:b}", u_fixed::<1>::from_num(165)),
+            format!("{:b}", u_s::<1>::from_num(165)),
             format!("{:b}", 165)
         );
         assert_eq!(
-            format!("{:#b}", u_fixed::<1>::from_num(5)),
+            format!("{:#b}", u_s::<1>::from_num(5)),
             format!("{:#b}", 5)
         );
         assert_eq!(
-            format!("{:032b}", u_fixed::<1>::from_num(5)),
+            format!("{:032b}", u_s::<1>::from_num(5)),
             format!("{:032b}", 5)
         );
         assert_eq!(
-            format!("{:032b}", u_fixed::<1>::from_num(5)),
+            format!("{:032b}", u_s::<1>::from_num(5)),
             format!("{:032b}", 5)
         );
         assert_eq!(
-            format!("{:<5b}", u_fixed::<1>::from_num(2)),
+            format!("{:<5b}", u_s::<1>::from_num(2)),
             format!("{:<5b}", 2)
         );
         assert_eq!(
-            format!("{:-<5b}", u_fixed::<1>::from_num(2)),
+            format!("{:-<5b}", u_s::<1>::from_num(2)),
             format!("{:-<5b}", 2)
         );
         assert_eq!(
-            format!("{:^5b}", u_fixed::<1>::from_num(2)),
+            format!("{:^5b}", u_s::<1>::from_num(2)),
             format!("{:^5b}", 2)
         );
         assert_eq!(
-            format!("{:>5b}", u_fixed::<1>::from_num(2)),
+            format!("{:>5b}", u_s::<1>::from_num(2)),
             format!("{:>5b}", 2)
         );
         assert_eq!(
-            format!("{:b}", u_fixed::<1>::from_num(u64::MAX)),
+            format!("{:b}", u_s::<1>::from_num(u64::MAX)),
             format!("{:b}", -1i64)
         );
         assert_eq!(
-            format!("{:b}", i_fixed::<1>::from_num(u64::MAX)),
+            format!("{:b}", i_s::<1>::from_num(u64::MAX)),
             format!("{:b}", -1i64)
         );
         assert_eq!(
-            format!("{:b}", u_fixed::<1>::from_num(0)),
+            format!("{:b}", u_s::<1>::from_num(0)),
             format!("{:b}", 0)
         );
         assert_eq!(
-            format!("{:b}", i_fixed::<1>::from_num(0)),
+            format!("{:b}", i_s::<1>::from_num(0)),
             format!("{:b}", 0)
         );
     }
 
     #[test]
-    fn int_fixed_to_lower_hex() {
-        assert_eq!(format!("{:x}", u_fixed::<2>::from_data([1, u64::MAX])), "ffffffffffffffff0000000000000001");
-        assert_eq!(format!("{:x}", u_fixed::<2>::from_data([3, 1])), "10000000000000003");
+    fn int_static_to_lower_hex() {
+        assert_eq!(format!("{:x}", u_s::<2>::from_data([1, u64::MAX])), "ffffffffffffffff0000000000000001");
+        assert_eq!(format!("{:x}", u_s::<2>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
-    fn int_fixed_to_upper_hex() {
-        assert_eq!(format!("{:X}", u_fixed::<2>::from_data([1, u64::MAX])), "FFFFFFFFFFFFFFFF0000000000000001");
-        assert_eq!(format!("{:X}", u_fixed::<2>::from_data([3, 1])), "10000000000000003");
+    fn int_static_to_upper_hex() {
+        assert_eq!(format!("{:X}", u_s::<2>::from_data([1, u64::MAX])), "FFFFFFFFFFFFFFFF0000000000000001");
+        assert_eq!(format!("{:X}", u_s::<2>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
-    fn int_fixed_to_hex_string_u64() {
+    fn int_static_to_hex_string_u64() {
         assert_eq!(
-            format!("{:x}", u_fixed::<1>::from_num(1)),
+            format!("{:x}", u_s::<1>::from_num(1)),
             format!("{:x}", 1)
         );
         assert_eq!(
-            format!("{:x}", i_fixed::<1>::from_num(1)),
+            format!("{:x}", i_s::<1>::from_num(1)),
             format!("{:x}", 1)
         );
         assert_eq!(
-            format!("{:x}", u_fixed::<1>::from_num(165)),
+            format!("{:x}", u_s::<1>::from_num(165)),
             format!("{:x}", 165)
         );
         assert_eq!(
-            format!("{:#x}", u_fixed::<1>::from_num(5)),
+            format!("{:#x}", u_s::<1>::from_num(5)),
             format!("{:#x}", 5)
         );
         assert_eq!(
-            format!("{:032x}", u_fixed::<1>::from_num(5)),
+            format!("{:032x}", u_s::<1>::from_num(5)),
             format!("{:032x}", 5)
         );
         assert_eq!(
-            format!("{:032x}", u_fixed::<1>::from_num(5)),
+            format!("{:032x}", u_s::<1>::from_num(5)),
             format!("{:032x}", 5)
         );
         assert_eq!(
-            format!("{:<5x}", u_fixed::<1>::from_num(2)),
+            format!("{:<5x}", u_s::<1>::from_num(2)),
             format!("{:<5x}", 2)
         );
         assert_eq!(
-            format!("{:-<5x}", u_fixed::<1>::from_num(2)),
+            format!("{:-<5x}", u_s::<1>::from_num(2)),
             format!("{:-<5x}", 2)
         );
         assert_eq!(
-            format!("{:^5x}", u_fixed::<1>::from_num(2)),
+            format!("{:^5x}", u_s::<1>::from_num(2)),
             format!("{:^5x}", 2)
         );
         assert_eq!(
-            format!("{:>5x}", u_fixed::<1>::from_num(2)),
+            format!("{:>5x}", u_s::<1>::from_num(2)),
             format!("{:>5x}", 2)
         );
         assert_eq!(
-            format!("{:x}", u_fixed::<1>::from_num(u64::MAX)),
+            format!("{:x}", u_s::<1>::from_num(u64::MAX)),
             format!("{:x}", -1i64)
         );
         assert_eq!(
-            format!("{:x}", i_fixed::<1>::from_num(u64::MAX)),
+            format!("{:x}", i_s::<1>::from_num(u64::MAX)),
             format!("{:x}", -1i64)
         );
         assert_eq!(
-            format!("{:x}", u_fixed::<1>::from_num(0)),
+            format!("{:x}", u_s::<1>::from_num(0)),
             format!("{:x}", 0)
         );
         assert_eq!(
-            format!("{:x}", i_fixed::<1>::from_num(0)),
+            format!("{:x}", i_s::<1>::from_num(0)),
             format!("{:x}", 0)
         );
     }
 
     #[test]
-    fn int_fixed_cmp() {
+    fn int_static_cmp() {
         // TODO: write better tests, more understandable, only edge cases
-        assert_eq!(u_fixed::<2>::from_data([1, 2]), u_fixed::<2>::from_data([1, 2]));
-        assert_eq!(u_fixed::<3>::from_data([3, 0, 2]), u_fixed::<3>::from_data([3, 0, 2]));
-        assert_ne!(u_fixed::<2>::from_data([1, 2]), u_fixed::<2>::from_data([2, 1]));
-        assert_ne!(u_fixed::<3>::from_data([1, 0, 2]), u_fixed::<3>::from_data([1, 0, 1]));
-        assert_eq!(u_fixed::<2>::from_data([1, 2]).cmp(&u_fixed::<2>::from_data([1, 2])), Ordering::Equal);
-        assert_eq!(u_fixed::<3>::from_data([3, 0, 2]).cmp(&u_fixed::<3>::from_data([3, 0, 2])), Ordering::Equal);
-        assert_eq!(u_fixed::<3>::from_data([0, 0, 0]).cmp(&u_fixed::<3>::from_data([1, 0, 0])), Ordering::Less);
-        assert_eq!(u_fixed::<3>::from_data([0, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 1, 0])), Ordering::Less);
-        assert_eq!(u_fixed::<3>::from_data([1, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 1, 0])), Ordering::Less);
-        assert_eq!(u_fixed::<3>::from_data([1, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 0, 1])), Ordering::Less);
-        assert_eq!(u_fixed::<3>::from_data([1, 0, 1]).cmp(&u_fixed::<3>::from_data([0, 1, 1])), Ordering::Less);
-        assert_eq!(u_fixed::<3>::from_data([1, 0, 1]).cmp(&u_fixed::<3>::from_data([2, 0, 1])), Ordering::Less);
-        assert_eq!(u_fixed::<3>::from_data([2, 0, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 1])), Ordering::Greater);
-        assert_eq!(u_fixed::<3>::from_data([1, 0, 0]).cmp(&u_fixed::<3>::from_data([0, 0, 0])), Ordering::Greater);
-        assert_eq!(u_fixed::<3>::from_data([0, 1, 0]).cmp(&u_fixed::<3>::from_data([0, 0, 0])), Ordering::Greater);
-        assert_eq!(u_fixed::<3>::from_data([0, 1, 0]).cmp(&u_fixed::<3>::from_data([1, 0, 0])), Ordering::Greater);
-        assert_eq!(u_fixed::<3>::from_data([0, 0, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 0])), Ordering::Greater);
-        assert_eq!(u_fixed::<3>::from_data([0, 1, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 1])), Ordering::Greater);
-        assert_eq!(u_fixed::<3>::from_data([2, 0, 1]).cmp(&u_fixed::<3>::from_data([1, 0, 1])), Ordering::Greater);
+        assert_eq!(u_s::<2>::from_data([1, 2]), u_s::<2>::from_data([1, 2]));
+        assert_eq!(u_s::<3>::from_data([3, 0, 2]), u_s::<3>::from_data([3, 0, 2]));
+        assert_ne!(u_s::<2>::from_data([1, 2]), u_s::<2>::from_data([2, 1]));
+        assert_ne!(u_s::<3>::from_data([1, 0, 2]), u_s::<3>::from_data([1, 0, 1]));
+        assert_eq!(u_s::<2>::from_data([1, 2]).cmp(&u_s::<2>::from_data([1, 2])), Ordering::Equal);
+        assert_eq!(u_s::<3>::from_data([3, 0, 2]).cmp(&u_s::<3>::from_data([3, 0, 2])), Ordering::Equal);
+        assert_eq!(u_s::<3>::from_data([0, 0, 0]).cmp(&u_s::<3>::from_data([1, 0, 0])), Ordering::Less);
+        assert_eq!(u_s::<3>::from_data([0, 0, 0]).cmp(&u_s::<3>::from_data([0, 1, 0])), Ordering::Less);
+        assert_eq!(u_s::<3>::from_data([1, 0, 0]).cmp(&u_s::<3>::from_data([0, 1, 0])), Ordering::Less);
+        assert_eq!(u_s::<3>::from_data([1, 0, 0]).cmp(&u_s::<3>::from_data([0, 0, 1])), Ordering::Less);
+        assert_eq!(u_s::<3>::from_data([1, 0, 1]).cmp(&u_s::<3>::from_data([0, 1, 1])), Ordering::Less);
+        assert_eq!(u_s::<3>::from_data([1, 0, 1]).cmp(&u_s::<3>::from_data([2, 0, 1])), Ordering::Less);
+        assert_eq!(u_s::<3>::from_data([2, 0, 1]).cmp(&u_s::<3>::from_data([1, 0, 1])), Ordering::Greater);
+        assert_eq!(u_s::<3>::from_data([1, 0, 0]).cmp(&u_s::<3>::from_data([0, 0, 0])), Ordering::Greater);
+        assert_eq!(u_s::<3>::from_data([0, 1, 0]).cmp(&u_s::<3>::from_data([0, 0, 0])), Ordering::Greater);
+        assert_eq!(u_s::<3>::from_data([0, 1, 0]).cmp(&u_s::<3>::from_data([1, 0, 0])), Ordering::Greater);
+        assert_eq!(u_s::<3>::from_data([0, 0, 1]).cmp(&u_s::<3>::from_data([1, 0, 0])), Ordering::Greater);
+        assert_eq!(u_s::<3>::from_data([0, 1, 1]).cmp(&u_s::<3>::from_data([1, 0, 1])), Ordering::Greater);
+        assert_eq!(u_s::<3>::from_data([2, 0, 1]).cmp(&u_s::<3>::from_data([1, 0, 1])), Ordering::Greater);
     }
 }
