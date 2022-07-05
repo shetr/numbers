@@ -73,6 +73,24 @@ pub fn mul_inout_overflow_acc(a: u64, b: u64, in_overflow: u64, accumulator: u64
     (add_res, out_overflow)
 }
 
+// b and in_rem should have its upper half bits set to zero
+// returns (div, rem)
+pub fn div_inout_rem(a: u64, b: u64, in_rem: u64) -> (u64, u64) {
+    // div results should be in lower half part of the bits, because all remainders are smaller than b
+
+    // first divide the upper part using in_rem
+    let a_upper = lower_to_upper(in_rem) | upper_to_lower(a);
+    let div_upper = lower_to_upper(a_upper / b);
+    let rem_upper = lower_to_upper(a_upper % b);
+
+    // then divide the lower part using rem_upper
+    let a_lower = rem_upper | mask_lower(a);
+    let div_lower = a_lower / b;
+    let rem_lower = a_lower % b;
+
+    (div_upper | div_lower, rem_lower)
+}
+
 pub fn shift_parts(shift: usize) -> (usize, usize) {
     let block_shift = shift / U64_BITS_COUNT;
     let local_shift = shift - block_shift * U64_BITS_COUNT;

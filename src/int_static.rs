@@ -131,15 +131,15 @@ impl<const N: usize, const S: bool> fmt::UpperHex for IntStatic<{N}, {S}> {
 }
 
 impl<const N: usize, const S: bool> Ord for IntStatic<{N}, {S}> {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, rhs: &Self) -> Ordering {
         if S {
             // FIXME: implement for signed
             return Ordering::Equal;
         } else {
             for i in (0..self.data.len()).rev() {
-                if self.data[i] < other.data[i] {
+                if self.data[i] < rhs.data[i] {
                     return Ordering::Less;
-                } else if self.data[i] > other.data[i] {
+                } else if self.data[i] > rhs.data[i] {
                     return Ordering::Greater;
                 }
             }
@@ -151,15 +151,15 @@ impl<const N: usize, const S: bool> Ord for IntStatic<{N}, {S}> {
 impl<const N: usize, const S: bool> Eq for IntStatic<{N}, {S}> {}
 
 impl<const N: usize, const S: bool> PartialOrd for IntStatic<{N}, {S}> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        Some(self.cmp(rhs))
     }
 }
 
 impl<const N: usize, const S: bool> PartialEq for IntStatic<{N}, {S}> {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, rhs: &Self) -> bool {
         for i in (0..self.data.len()).rev() {
-            if self.data[i] != other.data[i] {
+            if self.data[i] != rhs.data[i] {
                 return false;
             }
         }
@@ -274,18 +274,18 @@ impl<const N: usize, const S: bool> ShrAssign<usize> for IntStatic<{N}, {S}> {
 impl<const N: usize, const S: bool> Add for IntStatic<{N}, {S}> {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self {
+    fn add(self, rhs: Self) -> Self {
         let mut out = self;
-        out += other;
+        out += rhs;
         out
     }
 }
 
 impl<const N: usize, const S: bool> AddAssign for IntStatic<{N}, {S}> {
-    fn add_assign(&mut self, other: Self) {
+    fn add_assign(&mut self, rhs: Self) {
         let mut overflow = 0u64;
         for i in 0..N {
-            (self.data[i], overflow) = common::add_inout_overflow(self.data[i], other.data[i], overflow);
+            (self.data[i], overflow) = common::add_inout_overflow(self.data[i], rhs.data[i], overflow);
         }
     }
 }
@@ -293,7 +293,7 @@ impl<const N: usize, const S: bool> AddAssign for IntStatic<{N}, {S}> {
 impl<const N: usize, const S: bool> Mul for IntStatic<{N}, {S}> {
     type Output = Self;
 
-    fn mul(self, other: Self) -> Self {
+    fn mul(self, rhs: Self) -> Self {
         let mut out = IntStatic::<N,S>::zero();
         for left_idx in 0..N {
             let mut overflow = 0u64;
@@ -303,7 +303,7 @@ impl<const N: usize, const S: bool> Mul for IntStatic<{N}, {S}> {
                 
                 let accumulator = &mut out.data[out_idx];
                 let left = self.data[left_idx];
-                let right = other.data[right_idx];
+                let right = rhs.data[right_idx];
 
                 (*accumulator, overflow) = common::mul_inout_overflow_acc(left, right, overflow, *accumulator);
             }
@@ -313,14 +313,14 @@ impl<const N: usize, const S: bool> Mul for IntStatic<{N}, {S}> {
 }
 
 impl<const N: usize, const S: bool> MulAssign for IntStatic<{N}, {S}> {
-    fn mul_assign(&mut self, other: Self) {
+    fn mul_assign(&mut self, rhs: Self) {
         // possible implementation with diagonals for in-place evaluation:
         // maybe move this to its own function mul_assign_inplace
         // going by the diagonals with same index sum of the inputs = out index
         // let mut overflow = 0u64;
         // the seccond overflow is enough only if N is not bigger than max number inside used primitive type (here u64, which makes it fine)
         // but it could cause problems when generalizing to arbitrary primitive integer type
-        // on the other hand this could be also huge optimization for dynamic integers
+        // on the rhs hand this could be also huge optimization for dynamic integers
         // let mut overflow_overflow = 0u64;
         // for out_idx in 0..N {
         //     let mut accumulator = overflow;
@@ -330,7 +330,7 @@ impl<const N: usize, const S: bool> MulAssign for IntStatic<{N}, {S}> {
         //         let right_idx = out_idx - left_idx;
         //
         //         let left = self.data[left_idx];
-        //         let right = other.data[right_idx];
+        //         let right = rhs.data[right_idx];
         //         
         //         let mut new_overflow = 0;
         //         let mut new_overflow_overflow = 0;
@@ -342,7 +342,7 @@ impl<const N: usize, const S: bool> MulAssign for IntStatic<{N}, {S}> {
         // }
 
         // because of complications described above using mul implementation
-        *self = *self * other;
+        *self = *self * rhs;
     }
 }
 
@@ -358,30 +358,11 @@ impl<const N: usize, const S: bool> Div<u32> for IntStatic<{N}, {S}> {
 
 impl<const N: usize, const S: bool> DivAssign<u32> for IntStatic<{N}, {S}> {
     fn div_assign(&mut self, rhs: u32) {
-        const U64_HALF_BITS_COUNT: usize = mem::size_of::<u64>()*4;
-        const U64_LOWER_MASK: u64 = u64::MAX >> U64_HALF_BITS_COUNT;
-        const U64_UPPER_MASK: u64 = u64::MAX << U64_HALF_BITS_COUNT;
+        // TODO: make some tests
         let rhs = rhs as u64;
-        let mut rem = self.data[N-1] & U64_UPPER_MASK;
-        self.data[N-1] &= U64_LOWER_MASK;
-        for ih in (0..(2*N-1)).rev() {
-            if ih & 1 == 0 {
-                let i = ih >> 1;
-                let lhs = rem | (self.data[i] & U64_LOWER_MASK);
-                let div = lhs / rhs;
-                rem = (lhs % rhs) << U64_HALF_BITS_COUNT;
-                // FIXME: check if it can overflow here
-                self.data[i] += div;
-            } else {
-                let iu = (ih+1) >> 1;
-                let il = iu - 1;
-                let lhs = rem | (self.data[il] >> U64_HALF_BITS_COUNT);
-                let div = lhs / rhs;
-                rem = (lhs % rhs) << U64_HALF_BITS_COUNT;
-                // FIXME: check if it can overflow here
-                self.data[iu] += div >> U64_HALF_BITS_COUNT;
-                self.data[il] += div << U64_HALF_BITS_COUNT;
-            }
+        let mut rem = 0;
+        for i in (0..N).rev() {
+            (self.data[i], rem) = common::div_inout_rem(self.data[i], rhs, rem);
         }
     }
 }
