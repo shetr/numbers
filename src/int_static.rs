@@ -346,6 +346,46 @@ impl<const N: usize, const S: bool> MulAssign for IntStatic<{N}, {S}> {
     }
 }
 
+impl<const N: usize, const S: bool> Div<u32> for IntStatic<{N}, {S}> {
+    type Output = Self;
+
+    fn div(self, rhs: u32) -> Self::Output {
+        let mut out = self;
+        out /= rhs;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> DivAssign<u32> for IntStatic<{N}, {S}> {
+    fn div_assign(&mut self, rhs: u32) {
+        const U64_HALF_BITS_COUNT: usize = mem::size_of::<u64>()*4;
+        const U64_LOWER_MASK: u64 = u64::MAX >> U64_HALF_BITS_COUNT;
+        const U64_UPPER_MASK: u64 = u64::MAX << U64_HALF_BITS_COUNT;
+        let rhs = rhs as u64;
+        let mut rem = self.data[N-1] & U64_UPPER_MASK;
+        self.data[N-1] &= U64_LOWER_MASK;
+        for ih in (0..(2*N-1)).rev() {
+            if ih & 1 == 0 {
+                let i = ih >> 1;
+                let lhs = rem | (self.data[i] & U64_LOWER_MASK);
+                let div = lhs / rhs;
+                rem = (lhs % rhs) << U64_HALF_BITS_COUNT;
+                // FIXME: check if it can overflow here
+                self.data[i] += div;
+            } else {
+                let iu = (ih+1) >> 1;
+                let il = iu - 1;
+                let lhs = rem | (self.data[il] >> U64_HALF_BITS_COUNT);
+                let div = lhs / rhs;
+                rem = (lhs % rhs) << U64_HALF_BITS_COUNT;
+                // FIXME: check if it can overflow here
+                self.data[iu] += div >> U64_HALF_BITS_COUNT;
+                self.data[il] += div << U64_HALF_BITS_COUNT;
+            }
+        }
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub type u_static<const N: usize> = IntStatic<N, false>;
 #[allow(non_camel_case_types)]
