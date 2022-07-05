@@ -367,6 +367,29 @@ impl<const N: usize, const S: bool> DivAssign<u32> for IntStatic<{N}, {S}> {
     }
 }
 
+impl<const N: usize, const S: bool> Rem<u32> for IntStatic<{N}, {S}> {
+    type Output = u32;
+
+    fn rem(self, rhs: u32) -> Self::Output {
+        // TODO: make some tests
+        let rhs = rhs as u64;
+        let mut rem = 0;
+        for i in (0..N).rev() {
+            (_, rem) = common::div_inout_rem(self.data[i], rhs, rem);
+        }
+        rem as u32
+    }
+}
+
+impl<const N: usize, const S: bool> RemAssign<u32> for IntStatic<{N}, {S}> {
+    fn rem_assign(&mut self, rhs: u32) {
+        // TODO: make some tests
+        let rem = *self % rhs;
+        self.data = [0; N];
+        self.data[0] = rem as u64;
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub type u_static<const N: usize> = IntStatic<N, false>;
 #[allow(non_camel_case_types)]
