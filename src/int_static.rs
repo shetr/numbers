@@ -115,6 +115,29 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
         }
         0
     }
+
+    pub fn not_self(&mut self) {
+        for i in 0..N {
+            self.data[i] = !self.data[i];
+        }
+    }
+
+    fn neg_self_priv(&mut self) {
+        self.not_self();
+        *self += 1;
+    }
+
+    fn neg_priv(&self) -> Self {
+        let mut out = *self;
+        out.neg_self_priv();
+        out
+    }
+}
+
+impl<const N: usize> IntStatic<{N}, true> {
+    pub fn neg_self(&mut self) {
+        self.neg_self_priv();
+    }
 }
 
 impl<const N: usize, const S: bool> fmt::Display for IntStatic<{N}, {S}> {
@@ -238,9 +261,7 @@ impl<const N: usize, const S: bool> Not for IntStatic<{N}, {S}> {
 
     fn not(self) -> Self::Output {
         let mut out = self;
-        for i in 0..N {
-            out.data[i] = !out.data[i];
-        }
+        out.not_self();
         out
     }
 }
@@ -279,6 +300,25 @@ impl<const N: usize, const S: bool> ShrAssign<usize> for IntStatic<{N}, {S}> {
         let (block_shift, local_shift) = common::shift_parts(rhs);
         for i in 0..N {
             self.data[i] = common::shr_block(i, &self.data, block_shift, local_shift);
+        }
+    }
+}
+
+impl<const N: usize, const S: bool> Add<u64> for IntStatic<{N}, {S}> {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self {
+        let mut out = self;
+        out += rhs;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> AddAssign<u64> for IntStatic<{N}, {S}> {
+    fn add_assign(&mut self, rhs: u64) {
+        let mut overflow = rhs;
+        for i in 0..N {
+            (self.data[i], overflow) = common::add_out_overflow(self.data[i], overflow);
         }
     }
 }
@@ -438,6 +478,32 @@ impl<const N: usize, const S: bool> Div for IntStatic<{N}, {S}> {
         }
         // remainder is whats left in lhs_temp
         out
+    }
+}
+
+impl<const N: usize> Neg  for IntStatic<{N}, true> {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        let mut out = self;
+        out.neg_self();
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> Sub for IntStatic<{N}, {S}> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let mut out = self;
+        out -= rhs;
+        out
+    }
+}
+
+impl<const N: usize, const S: bool> SubAssign for IntStatic<{N}, {S}> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self += rhs.neg_priv();
     }
 }
 
@@ -701,5 +767,11 @@ mod tests {
         assert_eq!(u_s::<3>::from_data([0, 0, 1]).cmp(&u_s::<3>::from_data([1, 0, 0])), Ordering::Greater);
         assert_eq!(u_s::<3>::from_data([0, 1, 1]).cmp(&u_s::<3>::from_data([1, 0, 1])), Ordering::Greater);
         assert_eq!(u_s::<3>::from_data([2, 0, 1]).cmp(&u_s::<3>::from_data([1, 0, 1])), Ordering::Greater);
+    }
+
+    #[test]
+    fn int_static_neg() {
+        assert_eq!(-i_s::<2>::from_data([1, 2]), i_s::<2>::from_data([u64::MAX, !2]));
+        assert_eq!(-i_s::<2>::from_data([u64::MAX, !2]), i_s::<2>::from_data([1, 2]));
     }
 }
