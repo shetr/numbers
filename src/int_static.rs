@@ -132,6 +132,29 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
         out.neg_self_priv();
         out
     }
+
+    pub fn is_negative(&self) -> bool {
+        if S {
+            if self.data[N-1] & (1 << (mem::size_of::<u64>()*8 - 1)) > 0 {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    fn cmp_raw(&self, rhs: &Self) -> Ordering {
+        for i in (0..self.data.len()).rev() {
+            if self.data[i] < rhs.data[i] {
+                return Ordering::Less;
+            } else if self.data[i] > rhs.data[i] {
+                return Ordering::Greater;
+            }
+        }
+        return Ordering::Equal;
+    }
 }
 
 impl<const N: usize> IntStatic<{N}, true> {
@@ -168,17 +191,23 @@ impl<const N: usize, const S: bool> fmt::UpperHex for IntStatic<{N}, {S}> {
 impl<const N: usize, const S: bool> Ord for IntStatic<{N}, {S}> {
     fn cmp(&self, rhs: &Self) -> Ordering {
         if S {
-            // FIXME: implement for signed
-            return Ordering::Equal;
-        } else {
-            for i in (0..self.data.len()).rev() {
-                if self.data[i] < rhs.data[i] {
-                    return Ordering::Less;
-                } else if self.data[i] > rhs.data[i] {
-                    return Ordering::Greater;
+            let lhs_neg = self.is_negative();
+            let rhs_neg = rhs.is_negative();
+            if lhs_neg {
+                if rhs_neg {
+                    self.cmp_raw(rhs).reverse()
+                } else {
+                    Ordering::Less
+                }
+            } else {
+                if rhs_neg {
+                    Ordering::Greater
+                } else {
+                    self.cmp_raw(rhs)
                 }
             }
-            return Ordering::Equal;
+        } else {
+            self.cmp_raw(rhs)
         }
     }
 }
@@ -346,6 +375,7 @@ impl<const N: usize, const S: bool> Mul for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
+        // FIXME: probably incorrect for negative numbers
         let mut out = IntStatic::<N,S>::zero();
         for left_idx in 0..N {
             let mut overflow = 0u64;
@@ -410,6 +440,7 @@ impl<const N: usize, const S: bool> Div<u32> for IntStatic<{N}, {S}> {
 
 impl<const N: usize, const S: bool> DivAssign<u32> for IntStatic<{N}, {S}> {
     fn div_assign(&mut self, rhs: u32) {
+        // FIXME: probably incorrect for negative numbers
         // TODO: make some tests
         let rhs = rhs as u64;
         let mut rem = 0;
@@ -424,6 +455,7 @@ impl<const N: usize, const S: bool> Rem<u32> for IntStatic<{N}, {S}> {
 
     fn rem(self, rhs: u32) -> Self::Output {
         // TODO: make some tests
+        // FIXME: probably incorrect for negative numbers
         let rhs = rhs as u64;
         let mut rem = 0;
         for i in (0..N).rev() {
@@ -446,6 +478,11 @@ impl<const N: usize, const S: bool> Div for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
+        // FIXME: probably incorrect for negative numbers
+        if rhs == Self::zero() {
+            panic!("attempt to divide by zero");
+        }
+
         const U64_BITS_COUNT: usize = mem::size_of::<u64>()*8;
 
         let mut out = Self::zero();
@@ -454,30 +491,36 @@ impl<const N: usize, const S: bool> Div for IntStatic<{N}, {S}> {
 
         let rhs_non_zero = rhs_temp.largest_non_zero_index();
         let rhs_max_bit = common::get_max_bit(rhs_temp.data[rhs_non_zero]);
-        let mut rhs_shift = 0usize;
+        let lhs_non_zero = lhs_temp.largest_non_zero_index();
+        let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
+        let mut rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
         while lhs_temp > rhs {
             let lhs_non_zero = lhs_temp.largest_non_zero_index();
             let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
             let mut new_rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
-            if new_rhs_shift >= rhs_shift {
-                rhs_temp <<= new_rhs_shift - rhs_shift;
-            } else {
-                rhs_temp >>= rhs_shift - new_rhs_shift;
-            }
+
+            rhs_temp >>= rhs_shift - new_rhs_shift;
 
             if lhs_temp < rhs_temp {
                 // rhs_shift should be > 0
                 new_rhs_shift -= 1;
                 rhs_temp >>= 1;
             }
-            // FIXME: need implementation of -=
-            // lhs_temp -= rhs_temp;
+            lhs_temp -= rhs_temp;
             // now somehow shift the prev bit in out.data, probably by rhs_shift - new_rhs_shift
+            let shift_diff = rhs_shift - new_rhs_shift;
+            out <<= shift_diff;
             out.data[0] += 1;
             rhs_shift = new_rhs_shift;
         }
         // remainder is whats left in lhs_temp
         out
+    }
+}
+
+impl<const N: usize, const S: bool> DivAssign for IntStatic<{N}, {S}> {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
     }
 }
 
@@ -773,5 +816,18 @@ mod tests {
     fn int_static_neg() {
         assert_eq!(-i_s::<2>::from_data([1, 2]), i_s::<2>::from_data([u64::MAX, !2]));
         assert_eq!(-i_s::<2>::from_data([u64::MAX, !2]), i_s::<2>::from_data([1, 2]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn int_static_div_by_zero_u32() {
+        let _ = u_s::<2>::from_data([1, 2]) / 0;
+    }
+
+    #[test]
+    #[should_panic]
+    fn int_static_div_by_zero() {
+        //let a = u_s::<2>::from_data([1, 2]) / 0;
+        let _ = u_s::<2>::from_data([1, 2]) / u_s::<2>::from_data([0, 0]);
     }
 }
