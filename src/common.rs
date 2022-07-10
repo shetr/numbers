@@ -91,6 +91,24 @@ pub fn div_inout_rem(a: u64, b: u64, in_rem: u64) -> (u64, u64) {
     (div_upper | div_lower, rem_lower)
 }
 
+pub fn get_max_bit(n: u64) -> usize {
+    // TODO: make some tests, especially for the edge cases
+    // TODO: it would be cool do do some performance test comparing to variant which just shifts 1 64-times
+    // FIXME: probably incorrect implementation, fix with help of the tests as mentioned above
+    let mut max = U64_BITS_COUNT;
+    let mut min = 0usize;
+    while (max - min) > 1 {
+        let avg = (max + min) >> 1;
+        let avg_bit = 1 << avg;
+        if n < avg_bit {
+            max = avg;
+        } else {
+            min = avg;
+        }
+    }
+    min
+}
+
 pub fn shift_parts(shift: usize) -> (usize, usize) {
     let block_shift = shift / U64_BITS_COUNT;
     let local_shift = shift - block_shift * U64_BITS_COUNT;

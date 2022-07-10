@@ -28,6 +28,8 @@ use std::ops::*;
 // maybe do wrapping/saturating variant
 // in number traits create some trait for from_signed, to_singned, from_unsigned and to_unsigned
 // also create some trait for getting 2x sized type of a primitive type and getting 1/2 primitive type
+// TODO: optimize parameters on some operator trait functions
+// - for example use &self instead of just self, or use mut self to reuse the variable, but check if it's even possible at all
 
 #[derive(Debug, Copy, Clone)] // TODO: maybe implemet with Display, because normal numbers have it like that (I think)
 pub struct IntStatic<const N: usize, const S: bool>
@@ -102,6 +104,16 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
 
     fn to_binary(&self) -> String {
         common::to_binary(&self.data)
+    }
+
+    // if the nuber is zero, the index returned is 0
+    fn largest_non_zero_index(&self) -> usize {
+        for i in (0..N).rev() {
+            if self.data[i] != 0 {
+                return i;
+            }
+        }
+        0
     }
 }
 
@@ -387,6 +399,45 @@ impl<const N: usize, const S: bool> RemAssign<u32> for IntStatic<{N}, {S}> {
         let rem = *self % rhs;
         self.data = [0; N];
         self.data[0] = rem as u64;
+    }
+}
+
+impl<const N: usize, const S: bool> Div for IntStatic<{N}, {S}> {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        const U64_BITS_COUNT: usize = mem::size_of::<u64>()*8;
+
+        let mut out = Self::zero();
+        let mut lhs_temp = self;
+        let mut rhs_temp = rhs;
+
+        let rhs_non_zero = rhs_temp.largest_non_zero_index();
+        let rhs_max_bit = common::get_max_bit(rhs_temp.data[rhs_non_zero]);
+        let mut rhs_shift = 0usize;
+        while lhs_temp > rhs {
+            let lhs_non_zero = lhs_temp.largest_non_zero_index();
+            let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
+            let mut new_rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
+            if new_rhs_shift >= rhs_shift {
+                rhs_temp <<= new_rhs_shift - rhs_shift;
+            } else {
+                rhs_temp >>= rhs_shift - new_rhs_shift;
+            }
+
+            if lhs_temp < rhs_temp {
+                // rhs_shift should be > 0
+                new_rhs_shift -= 1;
+                rhs_temp >>= 1;
+            }
+            // FIXME: need implementation of -=
+            // lhs_temp -= rhs_temp;
+            // now somehow shift the prev bit in out.data, probably by rhs_shift - new_rhs_shift
+            out.data[0] += 1;
+            rhs_shift = new_rhs_shift;
+        }
+        // remainder is whats left in lhs_temp
+        out
     }
 }
 
