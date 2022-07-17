@@ -4,6 +4,7 @@ use std::cmp::{Ord, Eq, PartialEq, PartialOrd, Ordering};
 use std::fmt;
 use std::mem;
 use std::ops::*;
+use std::num::ParseIntError;
 
 
 // TODO:
@@ -79,6 +80,16 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
         let mut data: [u64; N] = [0; N];
         data[0] = num;
         IntStatic { data }
+    }
+
+    // TODO: maybe change String to some custome type
+    // TODO: write some tests, include checking for errors
+    pub fn from_hex(hex: &str) -> Result<Self, String> {
+        let mut out = Self::zero();
+        match common::from_hex(hex, &mut out.data) {
+            None => Ok(out),
+            Some(message) => Err(message)
+        }
     }
 
     pub fn filled(num: u64) -> Self {

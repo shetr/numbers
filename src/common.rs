@@ -142,6 +142,37 @@ pub fn shr_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usiz
     left_part & right_part
 }
 
+fn hex_to_u64(ch: u8) -> Result<u64, String> {
+    let num = ch as u64;
+    if num >= '0' as u64 && num <= '9' as u64 {
+        return Ok(num - '0' as u64);
+    }
+    if num >= 'a' as u64 && num <= 'f' as u64 {
+        return Ok(10u64 + num - 'a' as u64);
+    }
+    if num >= 'A' as u64 && num <= 'F' as u64 {
+        return Ok(10u64 + num - 'A' as u64);
+    }
+    Err(String::from("invalid hexadecimal character"))
+}
+
+pub fn from_hex(hex: &str, out_data: &mut [u64]) -> Option<String> {
+    if hex.len() > out_data.len() * U64_HEX_CHAR_COUNT {
+        return Some(String::from("input number string is too big to fit in the provided buffer"));
+    }
+    for (i, ch) in hex.as_bytes().iter().rev().enumerate() {
+        let data_offset = i / U64_HEX_CHAR_COUNT;
+        let hex_offset = i % U64_HEX_CHAR_COUNT;
+        let bit_offset = hex_offset * 4;
+        let maybe_value = hex_to_u64(*ch);
+        match maybe_value {
+            Ok(value) => out_data[data_offset] |= value << bit_offset,
+            Err(err) => { return Some(err); }
+        }
+    }
+    None
+}
+
 pub fn to_hex(data: &[u64]) -> String {
     let mut hex = String::with_capacity(data.len()*U64_HEX_CHAR_COUNT);
     let mut only_zeros = true;
