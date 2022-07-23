@@ -4,7 +4,6 @@ use std::cmp::{Ord, Eq, PartialEq, PartialOrd, Ordering};
 use std::fmt;
 use std::mem;
 use std::ops::*;
-use std::num::ParseIntError;
 
 
 // TODO:
@@ -83,7 +82,6 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
     }
 
     // TODO: maybe change String to some custome type
-    // TODO: write some tests, include checking for errors
     pub fn from_hex(hex: &str) -> Result<Self, String> {
         let mut out = Self::zero();
         match common::from_hex(hex, &mut out.data) {
@@ -634,29 +632,131 @@ pub type i1024 = IntStatic<16, true>;
 mod tests {
 
     use super::*;
-
+    
     #[test]
-    fn int_static_zero() {
+    fn zero() {
         let data: [u64; 3] = [0; 3];
         let num = u_s::<3>::zero();
         assert_eq!(*num.get_data(), data);
     }
 
     #[test]
-    fn int_static_from_data() {
+    fn from_data() {
         let data: [u64; 4] = [1, 2, 3, 4];
         let num = u_s::<4>::from_data(data);
         assert_eq!(*num.get_data(), data);
     }
 
+    mod from_hex {
+        use super::*;
+
+        #[test]
+        fn u_s1_empty_string() {
+            assert_eq!(u_s::<1>::from_hex("").unwrap(), u_s::<1>::zero());
+        }
+        #[test]
+        fn u_s2_empty_string() {
+            assert_eq!(u_s::<2>::from_hex("").unwrap(), u_s::<2>::zero());
+        }
+        #[test]
+        fn u_s1_zero() {
+            assert_eq!(u_s::<1>::from_hex("0").unwrap(), u_s::<1>::zero());
+        }
+        #[test]
+        fn i_s1_zero() {
+            assert_eq!(i_s::<1>::from_hex("0").unwrap(), i_s::<1>::zero());
+        }
+        #[test]
+        fn u_s2_zero() {
+            assert_eq!(u_s::<2>::from_hex("0").unwrap(), u_s::<2>::zero());
+        }
+        #[test]
+        fn i_s2_zero() {
+            assert_eq!(i_s::<2>::from_hex("0").unwrap(), i_s::<2>::zero());
+        }
+
+        #[test]
+        fn u_s1_invalid_char() {
+            assert_eq!(u_s::<1>::from_hex("!k2j0").unwrap_err(), String::from("invalid hexadecimal character"));
+        }
+        #[test]
+        fn u_s2_invalid_char() {
+            assert_eq!(u_s::<2>::from_hex("!k2j0").unwrap_err(), String::from("invalid hexadecimal character"));
+        }
+
+        #[test]
+        fn u_s1_input_fit_tight() {
+            assert_eq!(u_s::<1>::from_hex("0000000000000000").unwrap(), u_s::<1>::zero());
+        }
+        #[test]
+        fn u_s1_input_too_big() {
+            assert_eq!(u_s::<1>::from_hex("00000000000000000").unwrap_err(), String::from("input number string is too big to fit in the provided buffer"));
+        }
+
+        #[test]
+        #[allow(non_snake_case)]
+        fn u_s1_FFFFFFFFFFFFFFFF() {
+            assert_eq!(u_s::<1>::from_hex("FFFFFFFFFFFFFFFF").unwrap(), u_s::<1>::from_num(u64::MAX));
+        }
+        #[test]
+        #[allow(non_snake_case)]
+        fn u_s1_FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF() {
+            assert_eq!(u_s::<2>::from_hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap(), u_s::<2>::from_data([u64::MAX, u64::MAX]));
+        }
+        
+        #[test]
+        fn u_s1_ffffffffffffffff() {
+            assert_eq!(u_s::<1>::from_hex("ffffffffffffffff").unwrap(), u_s::<1>::from_num(u64::MAX));
+        }
+        #[test]
+        fn u_s1_ffffffffffffffffffffffffffffffff() {
+            assert_eq!(u_s::<2>::from_hex("ffffffffffffffffffffffffffffffff").unwrap(), u_s::<2>::from_data([u64::MAX, u64::MAX]));
+        }
+
+        #[test]
+        fn u_s1_fdb97531() {
+            assert_eq!(u_s::<1>::from_hex("fdb97531").unwrap(), u_s::<1>::from_num(0xfdb97531u64));
+        }
+        #[test]
+        fn u_s1_fdb97531fedcba9876543210() {
+            assert_eq!(u_s::<2>::from_hex("fdb97531fedcba9876543210").unwrap(), u_s::<2>::from_data([0xfedcba9876543210u64, 0xfdb97531u64]));
+        }
+
+        #[test]
+        fn u_s1_fedcba9876543210() {
+            assert_eq!(u_s::<1>::from_hex("fedcba9876543210").unwrap(), u_s::<1>::from_num(0xfedcba9876543210u64));
+        }
+        #[test]
+        fn u_s1_fedcba9876543210fedcba9876543210() {
+            assert_eq!(u_s::<2>::from_hex("fedcba9876543210fedcba9876543210").unwrap(), u_s::<2>::from_data([0xfedcba9876543210u64, 0xfedcba9876543210u64]));
+        }
+        #[test]
+        #[allow(non_snake_case)]
+        fn u_s1_FEDCBA9876543210() {
+            assert_eq!(u_s::<1>::from_hex("FEDCBA9876543210").unwrap(), u_s::<1>::from_num(0xFEDCBA9876543210u64));
+        }
+        #[test]
+        #[allow(non_snake_case)]
+        fn u_s1_FEDCBA9876543210FEDCBA9876543210() {
+            assert_eq!(u_s::<2>::from_hex("FEDCBA9876543210FEDCBA9876543210").unwrap(), u_s::<2>::from_data([0xFEDCBA9876543210u64, 0xFEDCBA9876543210u64]));
+        }
+        
+        #[test]
+        #[allow(non_snake_case)]
+        fn u_s1_ABCDEFabcdefAaBb() {
+            assert_eq!(u_s::<1>::from_hex("ABCDEFabcdefAaBb").unwrap(), u_s::<1>::from_num(0xABCDEFabcdefAaBbu64));
+        }
+    }
+
+
     #[test]
-    fn int_static_to_string() {
+    fn to_string() {
         let num = u_s::<4>::from_data([1, 2, 3, 4]);
         assert_eq!(num.to_string(), "1");
     }
 
     #[test]
-    fn int_static_to_binary_string() {
+    fn to_binary_string() {
         assert_eq!(
             format!("{:b}", u_s::<2>::from_data([1, u64::MAX])),
             "11111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000001"
@@ -668,7 +768,7 @@ mod tests {
     }
 
     #[test]
-    fn int_static_to_binary_string_u64() {
+    fn to_binary_string_u64() {
         assert_eq!(
             format!("{:b}", u_s::<1>::from_num(1)),
             format!("{:b}", 1)
@@ -728,19 +828,19 @@ mod tests {
     }
 
     #[test]
-    fn int_static_to_lower_hex() {
+    fn to_lower_hex() {
         assert_eq!(format!("{:x}", u_s::<2>::from_data([1, u64::MAX])), "ffffffffffffffff0000000000000001");
         assert_eq!(format!("{:x}", u_s::<2>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
-    fn int_static_to_upper_hex() {
+    fn to_upper_hex() {
         assert_eq!(format!("{:X}", u_s::<2>::from_data([1, u64::MAX])), "FFFFFFFFFFFFFFFF0000000000000001");
         assert_eq!(format!("{:X}", u_s::<2>::from_data([3, 1])), "10000000000000003");
     }
 
     #[test]
-    fn int_static_to_hex_string_u64() {
+    fn hex_string_u64() {
         assert_eq!(
             format!("{:x}", u_s::<1>::from_num(1)),
             format!("{:x}", 1)
@@ -800,7 +900,7 @@ mod tests {
     }
 
     #[test]
-    fn int_static_cmp() {
+    fn cmp() {
         // TODO: write better tests, more understandable, only edge cases
         assert_eq!(u_s::<2>::from_data([1, 2]), u_s::<2>::from_data([1, 2]));
         assert_eq!(u_s::<3>::from_data([3, 0, 2]), u_s::<3>::from_data([3, 0, 2]));
@@ -824,21 +924,22 @@ mod tests {
     }
 
     #[test]
-    fn int_static_neg() {
+    fn neg() {
         assert_eq!(-i_s::<2>::from_data([1, 2]), i_s::<2>::from_data([u64::MAX, !2]));
         assert_eq!(-i_s::<2>::from_data([u64::MAX, !2]), i_s::<2>::from_data([1, 2]));
     }
 
     #[test]
     #[should_panic]
-    fn int_static_div_by_zero_u32() {
+    fn div_by_zero_u32() {
         let _ = u_s::<2>::from_data([1, 2]) / 0;
     }
 
     #[test]
     #[should_panic]
-    fn int_static_div_by_zero() {
+    fn div_by_zero() {
         //let a = u_s::<2>::from_data([1, 2]) / 0;
         let _ = u_s::<2>::from_data([1, 2]) / u_s::<2>::from_data([0, 0]);
     }
+
 }
