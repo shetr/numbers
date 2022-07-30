@@ -21,7 +21,7 @@ fn lower_to_upper(n: u64) -> u64 {
 }
 
 fn join_upper_lower(upper: u64, lower: u64) -> u64 {
-    lower_to_upper(upper) + mask_lower(lower)
+    lower_to_upper(upper) | mask_lower(lower)
 }
 
 pub fn add_out_overflow(a: u64, b: u64) -> (u64, u64) {
@@ -52,6 +52,7 @@ fn add3_out_overflow(a: u64, b: u64, c: u64) -> (u64, u64) {
     return (out_sum, out_overflow);
 }
 
+// a and b should be lower half bits
 fn mul_upper_half_out_overflow(a: u64, b: u64) -> (u64, u64) {
     let mul = a * b;
     (lower_to_upper(mul), upper_to_lower(mul))
@@ -101,9 +102,7 @@ pub fn div_inout_rem(a: u64, b: u64, in_rem: u64) -> (u64, u64) {
 }
 
 pub fn get_max_bit(n: u64) -> usize {
-    // TODO: make some tests, especially for the edge cases
     // TODO: it would be cool do do some performance test comparing to variant which just shifts 1 64-times
-    // FIXME: probably incorrect implementation, fix with help of the tests as mentioned above
     let mut max = U64_BITS_COUNT;
     let mut min = 0usize;
     while (max - min) > 1 {
@@ -125,6 +124,7 @@ pub fn shift_parts(shift: usize) -> (usize, usize) {
 }
 
 // TODO: maybe generalize shl_block and shr_block with same function
+// TODO: tests for shl_block and shr_block
 
 pub fn shl_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usize) -> u64 {
     let left_part_idx = idx as isize - block_shift as isize;
@@ -216,4 +216,148 @@ pub fn to_binary(data: &[u64]) -> String {
         bin.push('0');
     }
     bin
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn add_out_overflow_max_max() {
+        let (out, overflow) = add_out_overflow(u64::MAX, u64::MAX);
+        assert_eq!(out, u64::MAX - 1);
+        assert_eq!(overflow, 1);
+    }
+    
+    #[test]
+    fn add_out_overflow_1_max() {
+        let (out, overflow) = add_out_overflow(1, u64::MAX);
+        assert_eq!(out, 0);
+        assert_eq!(overflow, 1);
+    }
+    #[test]
+    fn add_inout_overflow_max_max_0() {
+        let (out, overflow) = add_inout_overflow(u64::MAX, u64::MAX, 0);
+        assert_eq!(out, u64::MAX - 1);
+        assert_eq!(overflow, 1);
+    }
+
+    #[test]
+    fn add_inout_overflow_max_max_1() {
+        let (out, overflow) = add_inout_overflow(u64::MAX, u64::MAX, 1);
+        assert_eq!(out, u64::MAX);
+        assert_eq!(overflow, 1);
+    }
+
+    #[test]
+    fn add3_out_overflow_max_max_max() {
+        let (out, overflow) = add3_out_overflow(u64::MAX, u64::MAX, u64::MAX);
+        assert_eq!(out, u64::MAX - 2);
+        assert_eq!(overflow, 2);
+    }
+
+    #[test]
+    fn mul_upper_half_out_overflow_lower_max_lower_max() {
+        let (out, overflow) = mul_upper_half_out_overflow(U64_LOWER_MASK, U64_LOWER_MASK);
+        // a = b = 2^32
+        // (a - 1)^2 = a^2 - 2a + 1
+        assert_eq!(out, lower_to_upper(1));
+        assert_eq!(overflow, U64_LOWER_MASK - 1);
+    }
+    
+    #[test]
+    fn mul_out_overflow_max_max() {
+        let (out, overflow) = mul_out_overflow(u64::MAX, u64::MAX);
+        assert_eq!(out, 1);
+        assert_eq!(overflow, u64::MAX - 1);
+    }
+
+    #[test]
+    fn mul_inout_overflow_acc_max_max_max_max() {
+        let (out, overflow) = mul_inout_overflow_acc(u64::MAX, u64::MAX, u64::MAX, u64::MAX);
+        assert_eq!(out, u64::MAX);
+        assert_eq!(overflow, u64::MAX);
+    }
+
+    #[test]
+    fn div_inout_rem_max_lower_max_lower_max() {
+        let (out, rem) = div_inout_rem(u64::MAX, U64_LOWER_MASK, U64_LOWER_MASK);
+        // (a^2 - 1) / (a - 1) = ( (a - 1) * a + (a - 1) ) / (a - 1) = a + 1
+        // a = 2^32, (2^64 - 1) / (2^32 - 1) = 2^32 + 1
+        assert_eq!(out, U64_LOWER_MASK + 2);
+        assert_eq!(rem, 0);
+    }
+
+    #[test]
+    fn div_inout_rem_max_lower_max_0() {
+        let (out, rem) = div_inout_rem(u64::MAX, U64_LOWER_MASK, 0);
+        // (a^2 - 1) / (a - 1) = ( (a - 1) * a + (a - 1) ) / (a - 1) = a + 1
+        // a = 2^32, (2^64 - 1) / (2^32 - 1) = 2^32 + 1
+        assert_eq!(out, U64_LOWER_MASK + 2);
+        assert_eq!(rem, 0);
+    }
+
+    #[test]
+    fn div_inout_rem_max_lower_max_lower_max_m1() {
+        let (out, rem) = div_inout_rem(u64::MAX, U64_LOWER_MASK, U64_LOWER_MASK - 1);
+        assert_eq!(out, (0xFFFFFFFEFFFFFFFFFFFFFFFFu128 / 0xFFFFFFFFu128) as u64);
+        assert_eq!(rem, (0xFFFFFFFEFFFFFFFFFFFFFFFFu128 % 0xFFFFFFFFu128) as u64);
+    }
+    
+    #[test]
+    fn get_max_bit_0() {
+        assert_eq!(get_max_bit(0), 0);
+    }
+    
+    #[test]
+    fn get_max_bit_1() {
+        assert_eq!(get_max_bit(1), 0);
+    }
+
+    #[test]
+    fn get_max_bit_2() {
+        assert_eq!(get_max_bit(2), 1);
+    }
+    
+    #[test]
+    fn get_max_bit_3() {
+        assert_eq!(get_max_bit(3), 1);
+    }
+    
+    #[test]
+    fn get_max_bit_lower_max() {
+        assert_eq!(get_max_bit(U64_LOWER_MASK), 31);
+    }
+    
+    #[test]
+    fn get_max_bit_2_to_30() {
+        assert_eq!(get_max_bit(1 << 30), 30);
+    }
+
+    #[test]
+    fn get_max_bit_2_to_31() {
+        assert_eq!(get_max_bit(1 << 31), 31);
+    }
+    
+    #[test]
+    fn get_max_bit_2_to_32() {
+        assert_eq!(get_max_bit(1 << 32), 32);
+    }
+    
+    #[test]
+    fn get_max_bit_2_to_33() {
+        assert_eq!(get_max_bit(1 << 33), 33);
+    }
+
+    #[test]
+    fn get_max_bit_2_to_63() {
+        assert_eq!(get_max_bit(1 << 63), 63);
+    }
+
+    #[test]
+    fn get_max_bit_max() {
+        assert_eq!(get_max_bit(u64::MAX), 63);
+    }
+
 }
