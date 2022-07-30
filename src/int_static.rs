@@ -748,6 +748,58 @@ mod tests {
         }
     }
 
+    mod add {
+        use super::*;
+
+        #[test]
+        fn u_s2_1_max() {
+            let a = u_s::<2>::one();
+            let b = u_s::<2>::max();
+            assert_eq!(a + b, u_s::<2>::zero());
+        }
+
+        #[test]
+        fn u_s4_1_max() {
+            let a = u_s::<4>::one();
+            let b = u_s::<4>::max();
+            assert_eq!(a + b, u_s::<4>::zero());
+        }
+
+        #[test]
+        fn u_s2_max_max() {
+            let a = u_s::<2>::max();
+            let b = u_s::<2>::max();
+            assert_eq!(a + b, u_s::<2>::from_hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE").unwrap());
+        }
+
+        #[test]
+        fn u_s2_1_half_max_m1() {
+            let a = u_s::<2>::one();
+            let b = u_s::<2>::from_data([u64::MAX, 0]);
+            assert_eq!(a + b, u_s::<2>::from_data([0, 1]));
+        }
+
+        #[test]
+        fn u_s4_1_nearly_max() {
+            let a = u_s::<4>::one();
+            let b = u_s::<4>::from_data([u64::MAX, u64::MAX, u64::MAX, u64::MAX >> 1]);
+            assert_eq!(a + b, u_s::<4>::from_data([0, 0, 0, 1 << 63]));
+        }
+
+        #[test]
+        fn i_s2_1_m1() {
+            let a = i_s::<2>::one();
+            let b = -i_s::<2>::one();
+            assert_eq!(a + b, i_s::<2>::zero());
+        }
+
+        #[test]
+        fn i_s4_pos_max_mpos_max() {
+            let a = i_s::<4>::from_data([u64::MAX, u64::MAX, u64::MAX, u64::MAX >> 1]);
+            let b = -a;
+            assert_eq!(a + b, i_s::<4>::zero());
+        }
+    }
 
     #[test]
     fn to_string() {
