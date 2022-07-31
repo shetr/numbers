@@ -12,7 +12,7 @@ use std::ops::*;
 // implement shift only for primitive types - for indexing reasons
 // addition
 // multiplication
-// division
+// division, remainder + operation returning both division and remainder
 // implement all the operators for different 
 // negative variant
 // negation
@@ -81,6 +81,20 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
         IntStatic { data }
     }
 
+    /*pub fn from_i64(num: i64) -> Self {
+        let num = std::mem::transmute(num);
+        if S {
+            if common::get_sign_bit(num) {
+                let mut data: [u64; N] = [u64::MAX; N];
+                data[0] = num;
+                return IntStatic { data }
+            }
+        }
+        let mut data: [u64; N] = [0; N];
+        data[0] = num;
+        IntStatic { data }
+    }*/
+
     // TODO: maybe change String to some custome type
     pub fn from_hex(hex: &str) -> Result<Self, String> {
         let mut out = Self::zero();
@@ -143,15 +157,7 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
     }
 
     pub fn is_negative(&self) -> bool {
-        if S {
-            if self.data[N-1] & (1 << (mem::size_of::<u64>()*8 - 1)) > 0 {
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+        S && common::get_sign_bit(self.data[N-1])
     }
 
     fn cmp_raw(&self, rhs: &Self) -> Ordering {
@@ -384,7 +390,6 @@ impl<const N: usize, const S: bool> Mul for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
-        // FIXME: probably incorrect for negative numbers
         let mut out = IntStatic::<N,S>::zero();
         for left_idx in 0..N {
             let mut overflow = 0u64;
@@ -451,11 +456,14 @@ impl<const N: usize, const S: bool> DivAssign<u32> for IntStatic<{N}, {S}> {
     fn div_assign(&mut self, rhs: u32) {
         // FIXME: probably incorrect for negative numbers
         // TODO: make some tests
+        let negative = self.is_negative();
+        if negative { self.neg_self_priv() }
         let rhs = rhs as u64;
         let mut rem = 0;
         for i in (0..N).rev() {
             (self.data[i], rem) = common::div_inout_rem(self.data[i], rhs, rem);
         }
+        if negative { self.neg_self_priv() }
     }
 }
 
@@ -799,6 +807,161 @@ mod tests {
             let b = -a;
             assert_eq!(a + b, i_s::<4>::zero());
         }
+
+        #[test]
+        fn i_s4_pos_half_max_m1() {
+            let a = i_s::<4>::from_data([0, 0, 0, 1 << 63]);
+            let b = -i_s::<4>::one();
+            assert_eq!(a + b, i_s::<4>::from_data([u64::MAX, u64::MAX, u64::MAX, u64::MAX >> 1]));
+        }
+    }
+
+    mod mul {
+        use super::*;
+
+        #[test]
+        fn u_s2_1_max() {
+            let a = u_s::<2>::one();
+            let b = u_s::<2>::max();
+            assert_eq!(a * b, u_s::<2>::max());
+        }
+
+        #[test]
+        fn u_s2_max_1() {
+            let a = u_s::<2>::max();
+            let b = u_s::<2>::one();
+            assert_eq!(a * b, u_s::<2>::max());
+        }
+
+        #[test]
+        fn u_s2_1_0() {
+            let a = u_s::<2>::one();
+            let b = u_s::<2>::zero();
+            assert_eq!(a * b, u_s::<2>::zero());
+        }
+
+        #[test]
+        fn u_s2_max_0() {
+            let a = u_s::<2>::max();
+            let b = u_s::<2>::zero();
+            assert_eq!(a * b, u_s::<2>::zero());
+        }
+
+        #[test]
+        fn u_s2_0_max() {
+            let a = u_s::<2>::zero();
+            let b = u_s::<2>::max();
+            assert_eq!(a * b, u_s::<2>::zero());
+        }
+
+        #[test]
+        fn u_s3_2_to_64_m1_2_to_64() {
+            let a = u_s::<3>::from_data([u64::MAX, 0, 0]);
+            let b = u_s::<3>::from_data([0, 1, 0]);
+            assert_eq!(a * b, u_s::<3>::from_data([0, u64::MAX, 0]));
+        }
+
+        #[test]
+        fn u_s4_2_to_128_m1_2_to_64() {
+            let a = u_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            let b = u_s::<4>::from_data([0, 1, 0, 0]);
+            assert_eq!(a * b, u_s::<4>::from_data([0, u64::MAX, u64::MAX, 0]));
+        }
+
+        #[test]
+        fn u_s4_2_to_128_m1_2_to_128_m1() {
+            let a = u_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            let b = u_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            assert_eq!(a * b, u_s::<4>::from_data([1, 0, u64::MAX - 1, u64::MAX]));
+        }
+
+        #[test]
+        fn i_s4_1_m1() {
+            let a = i_s::<4>::one();
+            let b = -i_s::<4>::one();
+            assert_eq!(a * b, -i_s::<4>::one());
+        }
+
+        #[test]
+        fn i_s4_m1_max() {
+            let a = -i_s::<4>::one();
+            let b = i_s::<4>::max();
+            assert_eq!(a * b, -i_s::<4>::max());
+        }
+        
+        #[test]
+        fn i_s4_1_mmax() {
+            let a = i_s::<4>::one();
+            let b = -i_s::<4>::max();
+            assert_eq!(a * b, -i_s::<4>::max());
+        }
+
+        #[test]
+        fn i_s4_m1_m1() {
+            let a = -i_s::<4>::one();
+            let b = -i_s::<4>::one();
+            assert_eq!(a * b, i_s::<4>::one());
+        }
+
+        #[test]
+        fn i_s4_m1_mmax() {
+            let a = -i_s::<4>::one();
+            let b = -i_s::<4>::max();
+            assert_eq!(a * b, i_s::<4>::max());
+        }
+
+        #[test]
+        fn i_s4_mmax_m1() {
+            let a = -i_s::<4>::max();
+            let b = -i_s::<4>::one();
+            assert_eq!(a * b, i_s::<4>::max());
+        }
+
+        #[test]
+        fn i_s4_0_m1() {
+            let a = i_s::<4>::zero();
+            let b = -i_s::<4>::one();
+            assert_eq!(a * b, i_s::<4>::zero());
+        }
+        
+        #[test]
+        fn i_s4_m2_to_128_m1_m2_to_128_m1() {
+            let a = -i_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            let b = -i_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            assert_eq!(a * b, i_s::<4>::from_data([1, 0, u64::MAX - 1, u64::MAX]));
+        }
+
+        #[test]
+        fn i_s4_m2_to_128_m1_2_to_128_m1() {
+            let a = -i_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            let b = i_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            assert_eq!(a * b, -i_s::<4>::from_data([1, 0, u64::MAX - 1, u64::MAX]));
+        }
+
+        #[test]
+        fn i_s4_2_to_128_m1_m2_to_128_m1() {
+            let a = i_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            let b = -i_s::<4>::from_data([u64::MAX, u64::MAX, 0, 0]);
+            assert_eq!(a * b, -i_s::<4>::from_data([1, 0, u64::MAX - 1, u64::MAX]));
+        }
+    }
+
+    mod div_u32 {
+        use super::*;
+
+        #[test]
+        fn u_s2_32_bits_in_half_max() {
+            let a = u_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let b = u32::MAX;
+            assert_eq!(a / b, u_s::<2>::from_data([1 << 48, 0]));
+        }
+
+        #[test]
+        fn i_s2_m32_bits_in_half_max() {
+            let a = -i_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let b = u32::MAX;
+            assert_eq!(a / b, -i_s::<2>::from_data([1 << 48, 0]));
+        }
     }
 
     #[test]
@@ -982,6 +1145,11 @@ mod tests {
     }
 
     #[test]
+    fn neg_zero() {
+        assert_eq!(-i_s::<2>::zero(), i_s::<2>::zero());
+    }
+
+    #[test]
     #[should_panic]
     fn div_by_zero_u32() {
         let _ = u_s::<2>::from_data([1, 2]) / 0;
@@ -990,7 +1158,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn div_by_zero() {
-        //let a = u_s::<2>::from_data([1, 2]) / 0;
         let _ = u_s::<2>::from_data([1, 2]) / u_s::<2>::from_data([0, 0]);
     }
 

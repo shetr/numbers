@@ -117,6 +117,10 @@ pub fn get_max_bit(n: u64) -> usize {
     min
 }
 
+pub fn get_sign_bit(n: u64) -> bool {
+    n & (1 << (mem::size_of::<u64>()*8 - 1)) > 0
+}
+
 pub fn shift_parts(shift: usize) -> (usize, usize) {
     let block_shift = shift / U64_BITS_COUNT;
     let local_shift = shift - block_shift * U64_BITS_COUNT;
@@ -358,6 +362,16 @@ mod tests {
     #[test]
     fn get_max_bit_max() {
         assert_eq!(get_max_bit(u64::MAX), 63);
+    }
+
+    #[test]
+    fn get_sign_bit_max() {
+        assert_eq!(get_sign_bit(u64::MAX), true);
+    }
+
+    #[test]
+    fn get_sign_bit_nearly_max() {
+        assert_eq!(get_sign_bit(u64::MAX >> 1), false);
     }
 
 }
