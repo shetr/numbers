@@ -28,6 +28,7 @@ use std::ops::*;
 // maybe do wrapping/saturating variant
 // in number traits create some trait for from_signed, to_singned, from_unsigned and to_unsigned
 // also create some trait for getting 2x sized type of a primitive type and getting 1/2 primitive type
+// Add<i64>
 // TODO: optimize parameters on some operator trait functions
 // - for example use &self instead of just self, or use mut self to reuse the variable, but check if it's even possible at all
 
@@ -960,6 +961,24 @@ mod tests {
         fn i_s2_m32_bits_in_half_max() {
             let a = -i_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
             let b = u32::MAX;
+            assert_eq!(a / b, -i_s::<2>::from_data([1 << 48, 0]));
+        }
+    }
+
+    mod div {
+        use super::*;
+
+        #[test]
+        fn u_s2_32_bits_in_half_max() {
+            let a = u_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let b = u_s::<2>::from_data([u64::MAX >> 32, 0]);
+            assert_eq!(a / b, u_s::<2>::from_data([1 << 48, 0]));
+        }
+
+        #[test]
+        fn i_s2_m32_bits_in_half_max() {
+            let a = -i_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let b = i_s::<2>::from_data([u64::MAX >> 32, 0]);
             assert_eq!(a / b, -i_s::<2>::from_data([1 << 48, 0]));
         }
     }

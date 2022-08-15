@@ -139,6 +139,7 @@ pub fn shl_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usiz
 }
 
 pub fn shr_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usize) -> u64 {
+    // FIXME: shifts with 64 bits panic because of overflow
     let right_part_idx = idx + block_shift;
     let left_part_idx = right_part_idx + 1;
     let right_part = if right_part_idx < data.len() { data[right_part_idx] >> local_shift } else { 0u64 };
