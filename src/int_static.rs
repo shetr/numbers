@@ -25,7 +25,7 @@ use std::ops::*;
 // cover everything with unit tests
 // lower/upper exp fmt
 // when killing time: octal fmt
-// maybe do wrapping/saturating variant
+// maybe do wrapping, saturating, overflowing, checked and unchecked variant
 // in number traits create some trait for from_signed, to_singned, from_unsigned and to_unsigned
 // also create some trait for getting 2x sized type of a primitive type and getting 1/2 primitive type
 // Add<i64>

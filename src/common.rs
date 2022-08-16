@@ -131,20 +131,22 @@ pub fn shift_parts(shift: usize) -> (usize, usize) {
 // TODO: tests for shl_block and shr_block
 
 pub fn shl_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usize) -> u64 {
+    // TODO: some tests on edge cases
     let left_part_idx = idx as isize - block_shift as isize;
     let right_part_idx = left_part_idx - 1;
-    let left_part = if left_part_idx >= 0 { data[left_part_idx as usize] << local_shift } else { 0u64 };
-    let right_part = if right_part_idx >= 0 { data[right_part_idx as usize] >> (U64_BITS_COUNT - local_shift) } else { 0u64 };
-    left_part & right_part
+    let left_part = if left_part_idx >= 0 { data[left_part_idx as usize].wrapping_shl(local_shift as u32) } else { 0u64 };
+    let right_part = if right_part_idx >= 0 { data[right_part_idx as usize].wrapping_shr((U64_BITS_COUNT - local_shift) as u32) } else { 0u64 };
+    left_part | right_part
 }
 
 pub fn shr_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usize) -> u64 {
     // FIXME: shifts with 64 bits panic because of overflow
+    // TODO: some tests on edge cases
     let right_part_idx = idx + block_shift;
     let left_part_idx = right_part_idx + 1;
-    let right_part = if right_part_idx < data.len() { data[right_part_idx] >> local_shift } else { 0u64 };
-    let left_part = if left_part_idx < data.len() { data[left_part_idx] << (U64_BITS_COUNT - local_shift) } else { 0u64 };
-    left_part & right_part
+    let right_part = if right_part_idx < data.len() { data[right_part_idx].wrapping_shr(local_shift as u32) } else { 0u64 };
+    let left_part = if left_part_idx < data.len() { data[left_part_idx].wrapping_shl((U64_BITS_COUNT - local_shift) as u32) } else { 0u64 };
+    left_part | right_part
 }
 
 fn hex_to_u64(ch: u8) -> Result<u64, String> {
@@ -227,6 +229,22 @@ pub fn to_binary(data: &[u64]) -> String {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn shl_block_wrap_left() {
+        assert_eq!(shl_block(0, &[u64::MAX], 0, U64_BITS_COUNT), 0);
+    }
+
+    #[test]
+    fn shl_block_wrap_right() {
+        assert_eq!(shl_block(1, &[u64::MAX, 0], 0, U64_BITS_COUNT), u64::MAX);
+    }
+    
+    #[test]
+    fn shl_block_wrap_left_half() {
+        assert_eq!(shl_block(0, &[u64::MAX, 0], 0, 32), 0xFFFFFFFF00000000);
+        assert_eq!(shl_block(1, &[u64::MAX, 0], 0, 32), 0xFFFFFFFF);
+    }
 
     #[test]
     fn add_out_overflow_max_max() {
