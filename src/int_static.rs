@@ -8,6 +8,7 @@ use std::ops::*;
 
 // TODO:
 // note: don't be scared of the amount of work, once I implement this once, the others will be easy, just a lot of refactor
+// add operator variants with references
 // comparison operators
 // implement shift only for primitive types - for indexing reasons
 // addition
@@ -372,7 +373,15 @@ impl<const N: usize, const S: bool> Add for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        let mut out = self;
+        &self + &rhs
+    }
+}
+
+impl<const N: usize, const S: bool> Add for &IntStatic<{N}, {S}> {
+    type Output = IntStatic<{N}, {S}>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut out = self.clone();
         out += rhs;
         out
     }
@@ -380,6 +389,12 @@ impl<const N: usize, const S: bool> Add for IntStatic<{N}, {S}> {
 
 impl<const N: usize, const S: bool> AddAssign for IntStatic<{N}, {S}> {
     fn add_assign(&mut self, rhs: Self) {
+        *self += &rhs;
+    }
+}
+
+impl<const N: usize, const S: bool> AddAssign<&Self> for IntStatic<{N}, {S}> {
+    fn add_assign(&mut self, rhs: &Self) {
         let mut overflow = 0u64;
         for i in 0..N {
             (self.data[i], overflow) = common::add_inout_overflow(self.data[i], rhs.data[i], overflow);
@@ -542,7 +557,7 @@ impl<const N: usize, const S: bool> DivAssign for IntStatic<{N}, {S}> {
     }
 }
 
-impl<const N: usize> Neg  for IntStatic<{N}, true> {
+impl<const N: usize> Neg for IntStatic<{N}, true> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
