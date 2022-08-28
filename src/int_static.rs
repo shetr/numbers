@@ -13,7 +13,7 @@ use std::ops::*;
 // implement shift only for primitive types - for indexing reasons
 // addition
 // multiplication
-// division, remainder + operation returning both division and remainder
+// division, remainder + operation returning both division and remainder div_rem (use some trait for the div_rem)
 // implement all the operators for different 
 // negative variant
 // negation
@@ -83,6 +83,7 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
         IntStatic { data }
     }
 
+    // TODO: decide what to do with this mess
     /*pub fn from_i64(num: i64) -> Self {
         let num = std::mem::transmute(num);
         if S {
@@ -172,6 +173,94 @@ impl<const N: usize, const S: bool> IntStatic<{N}, {S}> {
         }
         return Ordering::Equal;
     }
+    
+    fn div_rem_u32(self, rhs: u32) -> (Self, u32) {
+        let mut div = self;
+        let rem = div.div_assign_rem_u32_signed(rhs);
+        (div, rem)
+    }
+
+    fn div_assign_rem_u32_signed(&mut self, rhs: u32) -> u32 {
+        // FIXME: probably incorrect for negative numbers
+        // TODO: make some tests
+        let negative = self.is_negative();
+        if negative { self.neg_self_priv(); }
+        let rem = self.div_assign_rem_u32_unsigned(rhs);
+        if negative { self.neg_self_priv(); }
+        rem
+    }
+
+    fn div_assign_rem_u32_unsigned(&mut self, rhs: u32) -> u32 {
+        let rhs = rhs as u64;
+        let mut rem = 0;
+        for i in (0..N).rev() {
+            (self.data[i], rem) = common::div_inout_rem(self.data[i], rhs, rem);
+        }
+        rem as u32
+    }
+
+    fn div_rem_signed(self, rhs: Self) -> (Self, Self) {
+        // FIXME: hadle all the cases with negative inputs
+        Self::div_rem_unsigned(self, rhs)
+    }
+
+    fn div_rem_unsigned(lhs: Self, rhs: Self) -> (Self, Self) {
+        // TODO: move this implementation to common, but that also requires to shift operations
+        // also when we are at it move basically everything - mul, add, ...
+        // TODO: optimize when number is small (<= u32), call u32 div variant
+        // FIXME: probably incorrect for negative numbers
+        if rhs == Self::zero() {
+            panic!("attempt to divide by zero");
+        }
+        // TODO: remove this line, generalize
+        const U64_BITS_COUNT: usize = mem::size_of::<u64>()*8;
+        // accumulated result of the division
+        let mut out = Self::zero();
+        // lhs is only remainder of division by rhs
+        if lhs < rhs {
+            return (out, lhs);
+        }
+        // helper lhs copy which is being decreased in process of long division
+        let mut lhs_temp = lhs;
+        // helper rhs copy which is being shifted to match bits of current lhs_temp
+        let mut rhs_temp = rhs;
+        // shift rhs_temp left to prepare for the first divison
+        let rhs_non_zero = rhs_temp.largest_non_zero_index();
+        let rhs_max_bit = common::get_max_bit(rhs_temp.data[rhs_non_zero]);
+        let lhs_non_zero = lhs_temp.largest_non_zero_index();
+        let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
+        let mut rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
+        rhs_temp <<= rhs_shift;
+        // each cycle is step of long division executing until there is only remainder
+        while lhs_temp > rhs {
+            // new shift, because lhs_temp could be changed
+            let lhs_non_zero = lhs_temp.largest_non_zero_index();
+            let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
+            let mut new_rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
+            // shift rhs to match with highest bit of lhs
+            rhs_temp >>= rhs_shift - new_rhs_shift;
+            // same highest bit doesn't mean that lhs is >= rhs, so we must shift one more time when it's the case
+            if lhs_temp < rhs_temp {
+                // rhs_shift should be > 0, because lhs_temp > rhs
+                new_rhs_shift -= 1;
+                rhs_temp >>= 1;
+            }
+            // partial division by shifted rhs
+            lhs_temp -= rhs_temp;
+            // shift out with difference to previous partial division
+            let shift_diff = rhs_shift - new_rhs_shift;
+            out <<= shift_diff;
+            // partial divison result
+            out.data[0] += 1;
+            rhs_shift = new_rhs_shift;
+        }
+        // apply the last shift
+        out <<= rhs_shift;
+        // remainder is whats left in lhs_temp
+        // TODO: generalize the function with remainder
+        (out, lhs_temp)
+    }
+
 }
 
 impl<const N: usize> IntStatic<{N}, true> {
@@ -462,24 +551,13 @@ impl<const N: usize, const S: bool> Div<u32> for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn div(self, rhs: u32) -> Self::Output {
-        let mut out = self;
-        out /= rhs;
-        out
+        self.div_rem_u32(rhs).0
     }
 }
 
 impl<const N: usize, const S: bool> DivAssign<u32> for IntStatic<{N}, {S}> {
     fn div_assign(&mut self, rhs: u32) {
-        // FIXME: probably incorrect for negative numbers
-        // TODO: make some tests
-        let negative = self.is_negative();
-        if negative { self.neg_self_priv() }
-        let rhs = rhs as u64;
-        let mut rem = 0;
-        for i in (0..N).rev() {
-            (self.data[i], rem) = common::div_inout_rem(self.data[i], rhs, rem);
-        }
-        if negative { self.neg_self_priv() }
+        let _rem = self.div_assign_rem_u32_signed(rhs);
     }
 }
 
@@ -487,14 +565,7 @@ impl<const N: usize, const S: bool> Rem<u32> for IntStatic<{N}, {S}> {
     type Output = u32;
 
     fn rem(self, rhs: u32) -> Self::Output {
-        // TODO: make some tests
-        // FIXME: probably incorrect for negative numbers
-        let rhs = rhs as u64;
-        let mut rem = 0;
-        for i in (0..N).rev() {
-            (_, rem) = common::div_inout_rem(self.data[i], rhs, rem);
-        }
-        rem as u32
+        self.div_rem_u32(rhs).1
     }
 }
 
@@ -511,43 +582,8 @@ impl<const N: usize, const S: bool> Div for IntStatic<{N}, {S}> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        // FIXME: probably incorrect for negative numbers
-        if rhs == Self::zero() {
-            panic!("attempt to divide by zero");
-        }
-
-        const U64_BITS_COUNT: usize = mem::size_of::<u64>()*8;
-
-        let mut out = Self::zero();
-        let mut lhs_temp = self;
-        let mut rhs_temp = rhs;
-
-        let rhs_non_zero = rhs_temp.largest_non_zero_index();
-        let rhs_max_bit = common::get_max_bit(rhs_temp.data[rhs_non_zero]);
-        let lhs_non_zero = lhs_temp.largest_non_zero_index();
-        let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
-        let mut rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
-        while lhs_temp > rhs {
-            let lhs_non_zero = lhs_temp.largest_non_zero_index();
-            let lhs_max_bit = common::get_max_bit(lhs_temp.data[lhs_non_zero]);
-            let mut new_rhs_shift = (lhs_non_zero - rhs_non_zero) * U64_BITS_COUNT + lhs_max_bit - rhs_max_bit;
-
-            rhs_temp >>= rhs_shift - new_rhs_shift;
-
-            if lhs_temp < rhs_temp {
-                // rhs_shift should be > 0
-                new_rhs_shift -= 1;
-                rhs_temp >>= 1;
-            }
-            lhs_temp -= rhs_temp;
-            // now somehow shift the prev bit in out.data, probably by rhs_shift - new_rhs_shift
-            let shift_diff = rhs_shift - new_rhs_shift;
-            out <<= shift_diff;
-            out.data[0] += 1;
-            rhs_shift = new_rhs_shift;
-        }
-        // remainder is whats left in lhs_temp
-        out
+        // FIXME: replace with signed variant
+        Self::div_rem_unsigned(self, rhs).0
     }
 }
 
@@ -967,14 +1003,14 @@ mod tests {
 
         #[test]
         fn u_s2_32_bits_in_half_max() {
-            let a = u_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let a = u_s::<2>::from_data([0xFFFF000000000000, 0x000000000000FFFF]);
             let b = u32::MAX;
             assert_eq!(a / b, u_s::<2>::from_data([1 << 48, 0]));
         }
 
         #[test]
         fn i_s2_m32_bits_in_half_max() {
-            let a = -i_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let a = -i_s::<2>::from_data([0xFFFF000000000000, 0x000000000000FFFF]);
             let b = u32::MAX;
             assert_eq!(a / b, -i_s::<2>::from_data([1 << 48, 0]));
         }
@@ -985,14 +1021,21 @@ mod tests {
 
         #[test]
         fn u_s2_32_bits_in_half_max() {
-            let a = u_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let a = u_s::<2>::from_data([0xFFFF000000000000, 0x000000000000FFFF]);
             let b = u_s::<2>::from_data([u64::MAX >> 32, 0]);
             assert_eq!(a / b, u_s::<2>::from_data([1 << 48, 0]));
         }
 
         #[test]
+        fn u_s2_32_bits_in_half_max2() {
+            let a = u_s::<2>::from_data([0xFFFFFFFFFFFF0000, 0x000000000000FFFF]);
+            let b = u_s::<2>::from_data([u64::MAX >> 32, 0]);
+            assert_eq!(a / b, u_s::<2>::from_data([(1 << 48) + (1 << 16), 0]));
+        }
+
+        #[test]
         fn i_s2_m32_bits_in_half_max() {
-            let a = -i_s::<2>::from_data([u64::MAX << 48, u64::MAX >> 48]);
+            let a = -i_s::<2>::from_data([0xFFFF000000000000, 0x000000000000FFFF]);
             let b = i_s::<2>::from_data([u64::MAX >> 32, 0]);
             assert_eq!(a / b, -i_s::<2>::from_data([1 << 48, 0]));
         }

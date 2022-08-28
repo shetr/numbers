@@ -8,16 +8,33 @@ const U64_LOWER_MASK: u64 = u64::MAX >> U64_HALF_BITS_COUNT;
 //const U64_UPPER_MASK: u64 = u64::MAX << U64_HALF_BITS_COUNT;
 const U64_HEX_CHAR_COUNT: usize = mem::size_of::<u64>()*2;
 
+// shift that never rotates, overflowing bits are just removed (no std shl implements this)
+pub fn not_rotating_shl(value: u64, shift: u32) -> u64 {
+    if shift >= U64_BITS_COUNT as u32 {
+        return 0u64;
+    }
+    let mask = u64::MAX >> shift;
+    (value & mask).wrapping_shl(shift)
+}
+
+// shift that never rotates, overflowing bits are just removed, similar to normal shr, but it never panics
+pub fn not_rotating_shr(value: u64, shift: u32) -> u64 {
+    if shift >= U64_BITS_COUNT as u32 {
+        return 0u64;
+    }
+    value >> shift
+}
+
 fn mask_lower(n: u64) -> u64 {
     n & U64_LOWER_MASK
 }
 
 fn upper_to_lower(n: u64) -> u64 {
-    n >> U64_HALF_BITS_COUNT
+    not_rotating_shr(n, U64_HALF_BITS_COUNT as u32)
 }
 
 fn lower_to_upper(n: u64) -> u64 {
-    n << U64_HALF_BITS_COUNT
+    not_rotating_shl(n, U64_HALF_BITS_COUNT as u32)
 }
 
 fn join_upper_lower(upper: u64, lower: u64) -> u64 {
@@ -134,8 +151,8 @@ pub fn shl_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usiz
     // TODO: some tests on edge cases
     let left_part_idx = idx as isize - block_shift as isize;
     let right_part_idx = left_part_idx - 1;
-    let left_part = if left_part_idx >= 0 { data[left_part_idx as usize].wrapping_shl(local_shift as u32) } else { 0u64 };
-    let right_part = if right_part_idx >= 0 { data[right_part_idx as usize].wrapping_shr((U64_BITS_COUNT - local_shift) as u32) } else { 0u64 };
+    let left_part = if left_part_idx >= 0 { not_rotating_shl(data[left_part_idx as usize], local_shift as u32) } else { 0u64 };
+    let right_part = if right_part_idx >= 0 { not_rotating_shr(data[right_part_idx as usize], (U64_BITS_COUNT - local_shift) as u32) } else { 0u64 };
     left_part | right_part
 }
 
@@ -144,8 +161,8 @@ pub fn shr_block(idx: usize, data: &[u64], block_shift: usize, local_shift: usiz
     // TODO: some tests on edge cases
     let right_part_idx = idx + block_shift;
     let left_part_idx = right_part_idx + 1;
-    let right_part = if right_part_idx < data.len() { data[right_part_idx].wrapping_shr(local_shift as u32) } else { 0u64 };
-    let left_part = if left_part_idx < data.len() { data[left_part_idx].wrapping_shl((U64_BITS_COUNT - local_shift) as u32) } else { 0u64 };
+    let right_part = if right_part_idx < data.len() { not_rotating_shr(data[right_part_idx], local_shift as u32) } else { 0u64 };
+    let left_part = if left_part_idx < data.len() { not_rotating_shl(data[left_part_idx], (U64_BITS_COUNT - local_shift) as u32) } else { 0u64 };
     left_part | right_part
 }
 
